@@ -21,7 +21,7 @@ export default function StudentDashboard() {
         { label: 'Books Issued', value: stats?.issuedCount || 0, icon: BookOpen, color: 'from-blue-500 to-cyan-500', route: '/my-books' },
         { label: 'Overdue', value: stats?.overdueCount || 0, icon: AlertTriangle, color: 'from-red-500 to-rose-500', route: '/my-books' },
         { label: 'Total Read', value: stats?.totalRead || 0, icon: TrendingUp, color: 'from-emerald-500 to-teal-500', route: '/history' },
-        { label: 'Fines', value: `₹${stats?.totalFines || 0}`, icon: Clock, color: 'from-amber-500 to-orange-500', route: '/history' },
+        { label: 'Fines', value: `₹${stats?.totalFines || 0}`, icon: Clock, color: 'from-amber-500 to-orange-500', route: '/history?filter=fines' },
     ];
 
     return (

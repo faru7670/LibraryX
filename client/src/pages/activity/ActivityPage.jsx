@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Clock, BookCopy, RotateCcw, BookMarked, DollarSign, ShieldCheck, Loader2 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Clock, BookCopy, RotateCcw, BookMarked, DollarSign, ShieldCheck, Loader2, FilterX } from 'lucide-react';
 import { getActivityLogs } from '../../services/activityService';
 import { useAuth } from '../../context/AuthContext';
 
@@ -15,9 +16,11 @@ const actionColors = {
 
 export default function ActivityPage() {
     const { user } = useAuth();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const filter = searchParams.get('filter');
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
-    const isStudent = user?.role === 'student';
+    const isStudent = user?.role === 'student' || user?.role === 'faculty';
 
     useEffect(() => {
         async function fetchLogs() {
@@ -39,38 +42,49 @@ export default function ActivityPage() {
 
     return (
         <div className="page-enter space-y-6">
-            <div>
-                <h1 className="text-2xl md:text-3xl font-bold font-display text-gray-900 dark:text-white">
-                    {isStudent ? 'My Activity' : 'Activity Logs'} 📋
-                </h1>
-                <p className="text-gray-500 dark:text-gray-400 mt-1">{isStudent ? 'Your library activity timeline' : 'Complete library audit trail'}</p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl md:text-3xl font-bold font-display text-gray-900 dark:text-white">
+                        {isStudent ? 'My Activity' : 'Activity Logs'} 📋
+                    </h1>
+                    <p className="text-gray-500 dark:text-gray-400 mt-1">
+                        {filter === 'fines' ? 'Displaying only fine-related activity' : isStudent ? 'Your library activity timeline' : 'Complete library audit trail'}
+                    </p>
+                </div>
+                {filter && (
+                    <button onClick={() => setSearchParams({})} className="btn-secondary text-xs flex items-center gap-2">
+                        <FilterX className="w-4 h-4" /> Clear Filter
+                    </button>
+                )}
             </div>
 
             <div className="relative">
                 <div className="absolute left-5 top-0 bottom-0 w-px bg-gray-200 dark:bg-gray-700/50" />
                 <div className="space-y-4">
-                    {logs.map((log) => {
-                        const Icon = actionIcons[log.action] || ShieldCheck;
-                        const colorClass = actionColors[log.action] || 'text-gray-500 bg-gray-50 dark:bg-gray-900/20';
-                        return (
-                            <div key={log.id} className="flex gap-4 ml-0 relative">
-                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 z-10 ${colorClass}`}><Icon className="w-5 h-5" /></div>
-                                <div className="glass-card p-4 flex-1">
-                                    <div className="flex items-start justify-between gap-2">
-                                        <div>
-                                            {!isStudent && <p className="text-xs font-medium text-primary-500 mb-0.5">{log.userName}</p>}
-                                            <p className="text-sm text-gray-800 dark:text-gray-200">{log.details}</p>
+                    {logs
+                        .filter(log => filter === 'fines' ? (log.details.includes('Fine: ₹') || log.details.includes('Penalty: ₹')) : true)
+                        .map((log) => {
+                            const Icon = actionIcons[log.action] || ShieldCheck;
+                            const colorClass = actionColors[log.action] || 'text-gray-500 bg-gray-50 dark:bg-gray-900/20';
+                            return (
+                                <div key={log.id} className="flex gap-4 ml-0 relative">
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 z-10 ${colorClass}`}><Icon className="w-5 h-5" /></div>
+                                    <div className="glass-card p-4 flex-1">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div>
+                                                {!isStudent && <p className="text-xs font-medium text-primary-500 mb-0.5">{log.userName}</p>}
+                                                <p className="text-sm text-gray-800 dark:text-gray-200">{log.details}</p>
+                                            </div>
+                                            <span className="badge badge-info text-[10px] flex-shrink-0">{log.action?.replace(/_/g, ' ')}</span>
                                         </div>
-                                        <span className="badge badge-info text-[10px] flex-shrink-0">{log.action?.replace(/_/g, ' ')}</span>
+                                        <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
+                                            <Clock className="w-3 h-3" />
+                                            {log.timestamp ? new Date(log.timestamp).toLocaleString() : ''}
+                                        </p>
                                     </div>
-                                    <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
-                                        <Clock className="w-3 h-3" />
-                                        {log.timestamp ? new Date(log.timestamp).toLocaleString() : ''}
-                                    </p>
                                 </div>
-                            </div>
-                        );
-                    })}
+                            );
+                        })}
                 </div>
             </div>
 

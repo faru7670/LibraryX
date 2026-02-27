@@ -33,7 +33,7 @@ export default function AdminDashboard() {
     const cards = [
         { label: 'Total Books', value: stats?.totalBooks || 0, sub: `${stats?.issuedCount || 0} issued`, icon: BookOpen, color: 'from-blue-500 to-cyan-500', route: '/books' },
         { label: 'Users', value: stats?.totalUsers || 0, sub: `${stats?.studentCount || 0} students`, icon: Users, color: 'from-emerald-500 to-teal-500', route: '/users' },
-        { label: 'Fines', value: `₹${stats?.totalFines || 0}`, sub: 'collected', icon: DollarSign, color: 'from-amber-500 to-orange-500', route: '/audit-log' },
+        { label: 'Fines', value: `₹${stats?.totalFines || 0}`, sub: 'collected', icon: DollarSign, color: 'from-amber-500 to-orange-500', route: '/audit-log?filter=fines' },
         { label: 'Overdue', value: `${stats?.overdueRate || 0}%`, sub: 'rate', icon: AlertTriangle, color: 'from-red-500 to-rose-500', route: '/issues' },
     ];
 
