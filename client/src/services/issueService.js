@@ -4,7 +4,7 @@ import {
     collection, doc, addDoc, getDocs, getDoc, updateDoc,
     query, where, orderBy, serverTimestamp, Timestamp, increment
 } from 'firebase/firestore';
-import { logActivity } from './activityService';
+import { logActivity, logStudentActivity } from './activityService';
 import { createNotification } from './notificationService';
 import { sendNotificationEmail } from './emailService';
 import { getAppSettings } from './settingsService';
@@ -73,12 +73,20 @@ export async function issueBook({ bookId, bookTitle, userId, userName, userEmail
         );
     }
 
-    // Log activity
+    // Log activity for librarian
     await logActivity(
         issuedBy.uid,
         issuedBy.displayName || issuedBy.email,
         'book_issued',
         `Issued "${bookTitle || book.title}" to ${userName}`
+    );
+
+    // Log activity for the student/faculty
+    await logStudentActivity(
+        userId,
+        userName,
+        'book_issued',
+        `"${bookTitle || book.title}" was issued to you. Due: ${dueDateStr}`
     );
 
     return { id: issueDoc.id, bookId, userId, issueDate: issueDate.toISOString().split('T')[0], dueDate: dueDateStr, status: 'issued' };
@@ -152,12 +160,22 @@ export async function returnBook(issueId, returnedBy) {
         );
     }
 
-    // Log activity
+    // Log activity for librarian
     await logActivity(
         returnedBy.uid,
         returnedBy.displayName || returnedBy.email,
         'book_returned',
         `Returned "${issue.bookTitle}" from ${issue.userName}. Fine: ₹${fineAmount}`
+    );
+
+    // Log activity for the student/faculty
+    await logStudentActivity(
+        issue.userId,
+        issue.userName,
+        'book_returned',
+        fineAmount > 0
+            ? `"${issue.bookTitle}" returned. Fine: ₹${fineAmount}`
+            : `"${issue.bookTitle}" returned. No fines!`
     );
 
     return { fineAmount, returnDate: returnDate.toISOString().split('T')[0] };
@@ -204,12 +222,20 @@ export async function reportLostBook(issueId, reportedBy) {
         );
     }
 
-    // Log activity
+    // Log activity for librarian/admin
     await logActivity(
         reportedBy.uid,
         reportedBy.displayName || reportedBy.email,
         'book_lost',
         `"${issue.bookTitle}" reported as lost by ${issue.userName}. Penalty: ₹${lostBookFine}`
+    );
+
+    // Log activity for the student/faculty
+    await logStudentActivity(
+        issue.userId,
+        issue.userName,
+        'book_lost',
+        `"${issue.bookTitle}" reported as lost. Penalty: ₹${lostBookFine}`
     );
 
     return { fineAmount: lostBookFine };

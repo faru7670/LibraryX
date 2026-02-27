@@ -10,6 +10,7 @@ const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'));
 const DashboardRouter = lazy(() => import('./pages/dashboard/DashboardRouter'));
 const BooksPage = lazy(() => import('./pages/books/BooksPage'));
+const MyBooksPage = lazy(() => import('./pages/books/MyBooksPage'));
 const IssuesPage = lazy(() => import('./pages/issues/IssuesPage'));
 const NotificationsPage = lazy(() => import('./pages/notifications/NotificationsPage'));
 const ReservationsPage = lazy(() => import('./pages/reservations/ReservationsPage'));
@@ -52,7 +53,7 @@ function AppRoutes() {
                 <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
                     <Route path="/dashboard" element={<Suspense fallback={<PageLoader />}><DashboardRouter /></Suspense>} />
                     <Route path="/books" element={<Suspense fallback={<PageLoader />}><BooksPage /></Suspense>} />
-                    <Route path="/my-books" element={<Suspense fallback={<PageLoader />}><BooksPage /></Suspense>} />
+                    <Route path="/my-books" element={<Suspense fallback={<PageLoader />}><MyBooksPage /></Suspense>} />
                     <Route path="/issues" element={<ProtectedRoute allowedRoles={['librarian', 'admin']}><Suspense fallback={<PageLoader />}><IssuesPage /></Suspense></ProtectedRoute>} />
                     <Route path="/faculty-issues" element={<ProtectedRoute allowedRoles={['faculty']}><Suspense fallback={<PageLoader />}><IssuesPage /></Suspense></ProtectedRoute>} />
                     <Route path="/users" element={<ProtectedRoute allowedRoles={['admin']}><Suspense fallback={<PageLoader />}><UsersPage /></Suspense></ProtectedRoute>} />
