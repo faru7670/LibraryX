@@ -26,11 +26,11 @@ export async function getNotifications(userId, userRole) {
     if (userRole === 'admin' || userRole === 'librarian') {
         q = query(ref, orderBy('createdAt', 'desc'));
     } else {
-        q = query(ref, where('userId', '==', userId), orderBy('createdAt', 'desc'));
+        q = query(ref, where('userId', '==', userId));
     }
 
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(d => {
+    const notifications = snapshot.docs.map(d => {
         const data = d.data();
         return {
             id: d.id,
@@ -40,6 +40,16 @@ export async function getNotifications(userId, userRole) {
                 : data.createdAt || '',
         };
     });
+
+    if (userRole === 'student' || userRole === 'faculty') {
+        notifications.sort((a, b) => {
+            const dateA = new Date(a.createdAt || 0);
+            const dateB = new Date(b.createdAt || 0);
+            return dateB - dateA;
+        });
+    }
+
+    return notifications;
 }
 
 // Mark a single notification as read

@@ -36,14 +36,14 @@ export async function getActivityLogs(userRole, userId, maxResults = 50) {
 
     if (userRole === 'student' || userRole === 'faculty') {
         // Students/faculty only see their own activity
-        q = query(ref, where('userId', '==', userId), orderBy('timestamp', 'desc'), limit(maxResults));
+        q = query(ref, where('userId', '==', userId));
     } else {
         // Librarians and admins see all
         q = query(ref, orderBy('timestamp', 'desc'), limit(maxResults));
     }
 
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(d => {
+    const logs = snapshot.docs.map(d => {
         const data = d.data();
         return {
             id: d.id,
@@ -51,4 +51,15 @@ export async function getActivityLogs(userRole, userId, maxResults = 50) {
             timestamp: data.timestamp instanceof Timestamp ? data.timestamp.toDate().toISOString() : data.timestamp,
         };
     });
+
+    if (userRole === 'student' || userRole === 'faculty') {
+        logs.sort((a, b) => {
+            const dateA = new Date(a.timestamp || 0);
+            const dateB = new Date(b.timestamp || 0);
+            return dateB - dateA;
+        });
+        return logs.slice(0, maxResults);
+    }
+
+    return logs;
 }

@@ -30,7 +30,6 @@ async function getEmailConfig() {
 export async function sendNotificationEmail(toEmail, toName, subject, message) {
     try {
         const config = await getEmailConfig();
-        emailjs.init({ publicKey: config.publicKey });
 
         await emailjs.send(config.serviceId, config.templateId, {
             to_email: toEmail,
@@ -39,6 +38,8 @@ export async function sendNotificationEmail(toEmail, toName, subject, message) {
             message: message,
             from_name: 'LibraryX',
             reply_to: 'noreply@libraryx.app',
+        }, {
+            publicKey: config.publicKey,
         });
         console.log(`📧 Email sent to ${toEmail}`);
     } catch (err) {
@@ -51,7 +52,6 @@ export async function sendNotificationEmail(toEmail, toName, subject, message) {
  */
 export async function sendTestEmail(toEmail, toName) {
     const config = await getEmailConfig();
-    emailjs.init({ publicKey: config.publicKey });
 
     return await emailjs.send(config.serviceId, config.templateId, {
         to_email: toEmail,
@@ -60,5 +60,7 @@ export async function sendTestEmail(toEmail, toName) {
         message: `Hello ${toName},\n\nThis is a test email from LibraryX.\n\nIf you received this, your email notifications are working correctly! 🎉\n\n— LibraryX`,
         from_name: 'LibraryX',
         reply_to: 'noreply@libraryx.app',
+    }, {
+        publicKey: config.publicKey,
     });
 }

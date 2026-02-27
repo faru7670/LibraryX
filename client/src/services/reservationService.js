@@ -53,13 +53,13 @@ export async function getReservations(userRole, userId) {
     let q;
 
     if (userRole === 'student') {
-        q = query(ref, where('userId', '==', userId), orderBy('createdAt', 'desc'));
+        q = query(ref, where('userId', '==', userId));
     } else {
         q = query(ref, orderBy('createdAt', 'desc'));
     }
 
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(d => {
+    const reservations = snapshot.docs.map(d => {
         const data = d.data();
         return {
             id: d.id,
@@ -67,6 +67,16 @@ export async function getReservations(userRole, userId) {
             createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
         };
     });
+
+    if (userRole === 'student') {
+        reservations.sort((a, b) => {
+            const dateA = new Date(a.createdAt || 0);
+            const dateB = new Date(b.createdAt || 0);
+            return dateB - dateA;
+        });
+    }
+
+    return reservations;
 }
 
 // Cancel a reservation
