@@ -3,7 +3,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { getGravatarUrl } from '../../utils/gravatar';
 import { getAppSettings, saveAppSettings } from '../../services/settingsService';
-import { User, Mail, Shield, Moon, Sun, Save, CheckCircle, Loader2, Calendar, DollarSign, Send, Sparkles } from 'lucide-react';
+import { sendTestEmail } from '../../services/emailService';
+import { User, Mail, Shield, Moon, Sun, Save, CheckCircle, Loader2, Calendar, DollarSign, Send, Sparkles, Zap } from 'lucide-react';
 
 export default function SettingsPage() {
     const { user, updateUserProfile } = useAuth();
@@ -14,6 +15,8 @@ export default function SettingsPage() {
     const [saved, setSaved] = useState(false);
     const [savingLib, setSavingLib] = useState(false);
     const [savedLib, setSavedLib] = useState(false);
+    const [testingEmail, setTestingEmail] = useState(false);
+    const [emailTestResult, setEmailTestResult] = useState(null);
 
     // Admin/Librarian settings
     const isAdmin = user?.role === 'admin' || user?.role === 'librarian';
@@ -225,6 +228,39 @@ export default function SettingsPage() {
                                     placeholder="e.g. user_def456"
                                 />
                             </div>
+                        </div>
+
+                        {/* Template Setup Instructions */}
+                        <div className="mt-4 p-3 rounded-xl bg-violet-500/5 border border-violet-500/10">
+                            <p className="text-xs font-medium text-violet-400 mb-1">⚡ EmailJS Template Setup</p>
+                            <p className="text-[11px] text-gray-400">Your EmailJS template must use these variables: <code className="text-violet-300">{'{{to_email}}'}</code>, <code className="text-violet-300">{'{{to_name}}'}</code>, <code className="text-violet-300">{'{{subject}}'}</code>, <code className="text-violet-300">{'{{message}}'}</code>, <code className="text-violet-300">{'{{from_name}}'}</code></p>
+                        </div>
+
+                        {/* Test Email Button */}
+                        <div className="mt-4 flex items-center gap-3">
+                            <button
+                                onClick={async () => {
+                                    setTestingEmail(true);
+                                    setEmailTestResult(null);
+                                    try {
+                                        await sendTestEmail(user?.email, user?.name);
+                                        setEmailTestResult({ type: 'success', text: `✅ Test email sent to ${user?.email}! Check your inbox.` });
+                                    } catch (err) {
+                                        setEmailTestResult({ type: 'error', text: `❌ Failed: ${err?.text || err?.message || 'Unknown error'}` });
+                                    }
+                                    setTestingEmail(false);
+                                }}
+                                disabled={testingEmail}
+                                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 border border-cyan-500/20 text-sm font-medium transition-colors disabled:opacity-50"
+                            >
+                                {testingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                                Send Test Email
+                            </button>
+                            {emailTestResult && (
+                                <p className={`text-sm ${emailTestResult.type === 'success' ? 'text-emerald-400' : 'text-red-400'}`}>
+                                    {emailTestResult.text}
+                                </p>
+                            )}
                         </div>
                     </div>
 
