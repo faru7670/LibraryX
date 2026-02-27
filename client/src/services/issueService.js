@@ -6,13 +6,15 @@ import {
 } from 'firebase/firestore';
 import { logActivity } from './activityService';
 import { createNotification } from './notificationService';
+import { sendNotificationEmail } from './emailService';
+import { getAppSettings } from './settingsService';
 
 const ISSUES_COL = 'issuedBooks';
 const BOOKS_COL = 'books';
 const RESERVATIONS_COL = 'reservations';
 
-// Issue a book to a student
-export async function issueBook({ bookId, bookTitle, userId, userName }, issuedBy) {
+// Issue a book to a student or faculty
+export async function issueBook({ bookId, bookTitle, userId, userName, userEmail, dueDate }, issuedBy) {
     // Check book availability
     const bookRef = doc(db, BOOKS_COL, bookId);
     const bookSnap = await getDoc(bookRef);
@@ -21,10 +23,18 @@ export async function issueBook({ bookId, bookTitle, userId, userName }, issuedB
     const book = bookSnap.data();
     if (book.availableCopies <= 0) throw new Error('No copies available');
 
-    // Calculate due date (14 days from now)
+    // Use custom due date or calculate from settings
     const issueDate = new Date();
-    const dueDate = new Date(issueDate);
-    dueDate.setDate(dueDate.getDate() + 14);
+    let finalDueDate;
+    if (dueDate) {
+        finalDueDate = new Date(dueDate);
+    } else {
+        const settings = await getAppSettings();
+        finalDueDate = new Date(issueDate);
+        finalDueDate.setDate(finalDueDate.getDate() + (settings.defaultDueDays || 14));
+    }
+
+    const dueDateStr = finalDueDate.toISOString().split('T')[0];
 
     // Create issue record
     const issueDoc = await addDoc(collection(db, ISSUES_COL), {
@@ -32,8 +42,9 @@ export async function issueBook({ bookId, bookTitle, userId, userName }, issuedB
         bookTitle: bookTitle || book.title,
         userId,
         userName,
+        userEmail: userEmail || '',
         issueDate: issueDate.toISOString().split('T')[0],
-        dueDate: dueDate.toISOString().split('T')[0],
+        dueDate: dueDateStr,
         returnDate: null,
         fineAmount: 0,
         status: 'issued',
@@ -45,12 +56,22 @@ export async function issueBook({ bookId, bookTitle, userId, userName }, issuedB
         availableCopies: increment(-1),
     });
 
-    // Create notification for student
+    // Create in-app notification for the user
     await createNotification(
         userId,
         'issued',
-        `"${bookTitle || book.title}" has been issued to you. Due: ${dueDate.toISOString().split('T')[0]}`
+        `"${bookTitle || book.title}" has been issued to you. Due: ${dueDateStr}`
     );
+
+    // Send email notification (non-blocking)
+    if (userEmail) {
+        sendNotificationEmail(
+            userEmail,
+            userName,
+            `📚 Book Issued: ${bookTitle || book.title}`,
+            `Hello ${userName},\n\nThe book "${bookTitle || book.title}" has been issued to you.\n\n📅 Due Date: ${dueDateStr}\n\nPlease return it on time to avoid fines.\n\n— LibraryX`
+        );
+    }
 
     // Log activity
     await logActivity(
@@ -60,7 +81,7 @@ export async function issueBook({ bookId, bookTitle, userId, userName }, issuedB
         `Issued "${bookTitle || book.title}" to ${userName}`
     );
 
-    return { id: issueDoc.id, bookId, userId, issueDate: issueDate.toISOString().split('T')[0], dueDate: dueDate.toISOString().split('T')[0], status: 'issued' };
+    return { id: issueDoc.id, bookId, userId, issueDate: issueDate.toISOString().split('T')[0], dueDate: dueDateStr, status: 'issued' };
 }
 
 // Return a book
@@ -75,11 +96,13 @@ export async function returnBook(issueId, returnedBy) {
     const returnDate = new Date();
     const dueDate = new Date(issue.dueDate);
 
-    // Calculate fine: ₹5 per day overdue
+    // Calculate fine using configurable rate
+    const settings = await getAppSettings();
+    const finePerDay = settings.finePerDay || 5;
     let fineAmount = 0;
     if (returnDate > dueDate) {
         const daysOverdue = Math.ceil((returnDate - dueDate) / (1000 * 60 * 60 * 24));
-        fineAmount = daysOverdue * 5;
+        fineAmount = daysOverdue * finePerDay;
     }
 
     // Update issue record
@@ -95,11 +118,21 @@ export async function returnBook(issueId, returnedBy) {
         availableCopies: increment(1),
     });
 
-    // Notification for student
+    // In-app notification for the user
     const msg = fineAmount > 0
         ? `"${issue.bookTitle}" returned. Fine: ₹${fineAmount} (${Math.ceil((returnDate - dueDate) / (1000 * 60 * 60 * 24))} days overdue).`
         : `"${issue.bookTitle}" returned successfully. No fines.`;
     await createNotification(issue.userId, 'returned', msg);
+
+    // Send email notification (non-blocking)
+    if (issue.userEmail) {
+        sendNotificationEmail(
+            issue.userEmail,
+            issue.userName,
+            `📕 Book Returned: ${issue.bookTitle}`,
+            `Hello ${issue.userName},\n\nThe book "${issue.bookTitle}" has been returned.\n\n${fineAmount > 0 ? `💰 Fine: ₹${fineAmount}\n` : '✅ No fines. Great job!\n'}\nThank you for using LibraryX!`
+        );
+    }
 
     // Check if anyone is waiting in reservation queue for this book
     const resQuery = query(
@@ -130,12 +163,65 @@ export async function returnBook(issueId, returnedBy) {
     return { fineAmount, returnDate: returnDate.toISOString().split('T')[0] };
 }
 
+// Report a book as lost
+export async function reportLostBook(issueId, reportedBy) {
+    const issueRef = doc(db, ISSUES_COL, issueId);
+    const issueSnap = await getDoc(issueRef);
+    if (!issueSnap.exists()) throw new Error('Issue record not found');
+
+    const issue = issueSnap.data();
+    if (issue.status === 'returned') throw new Error('Book already returned');
+    if (issue.status === 'lost') throw new Error('Book already reported as lost');
+
+    // Get configurable lost book fine
+    const settings = await getAppSettings();
+    const lostBookFine = settings.lostBookFine || 500;
+
+    // Update issue record
+    await updateDoc(issueRef, {
+        status: 'lost',
+        fineAmount: lostBookFine,
+        returnDate: new Date().toISOString().split('T')[0],
+    });
+
+    // Decrement totalCopies (book is permanently gone)
+    const bookRef = doc(db, BOOKS_COL, issue.bookId);
+    await updateDoc(bookRef, {
+        totalCopies: increment(-1),
+    });
+
+    // In-app notification
+    const msg = `"${issue.bookTitle}" has been reported as lost. Penalty: ₹${lostBookFine}. Please contact the librarian.`;
+    await createNotification(issue.userId, 'lost', msg);
+
+    // Send email notification
+    if (issue.userEmail) {
+        sendNotificationEmail(
+            issue.userEmail,
+            issue.userName,
+            `⚠️ Book Lost: ${issue.bookTitle}`,
+            `Hello ${issue.userName},\n\nThe book "${issue.bookTitle}" has been reported as lost.\n\n💰 Lost Book Penalty: ₹${lostBookFine}\n\nPlease visit the library to settle the fine.\n\n— LibraryX`
+        );
+    }
+
+    // Log activity
+    await logActivity(
+        reportedBy.uid,
+        reportedBy.displayName || reportedBy.email,
+        'book_lost',
+        `"${issue.bookTitle}" reported as lost by ${issue.userName}. Penalty: ₹${lostBookFine}`
+    );
+
+    return { fineAmount: lostBookFine };
+}
+
+
 // Get all issues (filtered by role)
 export async function getIssues(userRole, userId) {
     const ref = collection(db, ISSUES_COL);
     let q;
 
-    if (userRole === 'student') {
+    if (userRole === 'student' || userRole === 'faculty') {
         q = query(ref, where('userId', '==', userId), orderBy('createdAt', 'desc'));
     } else {
         q = query(ref, orderBy('createdAt', 'desc'));
@@ -143,6 +229,13 @@ export async function getIssues(userRole, userId) {
 
     const snapshot = await getDocs(q);
     const now = new Date();
+
+    // Load configurable fine rate
+    let finePerDay = 5;
+    try {
+        const settings = await getAppSettings();
+        finePerDay = settings.finePerDay || 5;
+    } catch { }
 
     return snapshot.docs.map(d => {
         const data = d.data();
@@ -152,7 +245,7 @@ export async function getIssues(userRole, userId) {
         if (status === 'issued' && new Date(data.dueDate) < now) {
             status = 'overdue';
             const daysOverdue = Math.ceil((now - new Date(data.dueDate)) / (1000 * 60 * 60 * 24));
-            fineAmount = daysOverdue * 5;
+            fineAmount = daysOverdue * finePerDay;
         }
         return {
             id: d.id,
@@ -164,12 +257,18 @@ export async function getIssues(userRole, userId) {
     });
 }
 
-// Get student's currently active issues (for dashboard)
+// Get student's or faculty's currently active issues (for dashboard)
 export async function getStudentActiveIssues(userId) {
     const ref = collection(db, ISSUES_COL);
     const q = query(ref, where('userId', '==', userId), where('status', 'in', ['issued', 'overdue']));
     const snapshot = await getDocs(q);
     const now = new Date();
+
+    let finePerDay = 5;
+    try {
+        const settings = await getAppSettings();
+        finePerDay = settings.finePerDay || 5;
+    } catch { }
 
     return snapshot.docs.map(d => {
         const data = d.data();
@@ -177,7 +276,7 @@ export async function getStudentActiveIssues(userId) {
         let fineAmount = data.fineAmount || 0;
         if (status === 'issued' && new Date(data.dueDate) < now) {
             status = 'overdue';
-            fineAmount = Math.ceil((now - new Date(data.dueDate)) / (1000 * 60 * 60 * 24)) * 5;
+            fineAmount = Math.ceil((now - new Date(data.dueDate)) / (1000 * 60 * 60 * 24)) * finePerDay;
         }
         return { id: d.id, ...data, status, fineAmount };
     });

@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import { User, Mail, Shield, Moon, Sun, Save, CheckCircle, Loader2 } from 'lucide-react';
+import { getGravatarUrl } from '../../utils/gravatar';
+import { getAppSettings, saveAppSettings } from '../../services/settingsService';
+import { User, Mail, Shield, Moon, Sun, Save, CheckCircle, Loader2, Calendar, DollarSign, Send, Sparkles } from 'lucide-react';
 
 export default function SettingsPage() {
     const { user, updateUserProfile } = useAuth();
@@ -10,6 +12,25 @@ export default function SettingsPage() {
     const [department, setDepartment] = useState(user?.department || '');
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
+    const [savingLib, setSavingLib] = useState(false);
+    const [savedLib, setSavedLib] = useState(false);
+
+    // Admin/Librarian settings
+    const isAdmin = user?.role === 'admin' || user?.role === 'librarian';
+    const [appSettings, setAppSettings] = useState({
+        defaultDueDays: 14,
+        finePerDay: 5,
+        lostBookFine: 500,
+        emailjsServiceId: '',
+        emailjsTemplateId: '',
+        emailjsPublicKey: '',
+    });
+
+    useEffect(() => {
+        if (isAdmin) {
+            getAppSettings().then(setAppSettings).catch(console.error);
+        }
+    }, [isAdmin]);
 
     const handleSave = async () => {
         setSaving(true);
@@ -23,6 +44,18 @@ export default function SettingsPage() {
         setSaving(false);
     };
 
+    const handleSaveLibSettings = async () => {
+        setSavingLib(true);
+        try {
+            await saveAppSettings(appSettings);
+            setSavedLib(true);
+            setTimeout(() => setSavedLib(false), 2000);
+        } catch (err) {
+            console.error('Failed to save library settings:', err);
+        }
+        setSavingLib(false);
+    };
+
     return (
         <div className="page-enter space-y-6 max-w-3xl">
             <div>
@@ -32,19 +65,21 @@ export default function SettingsPage() {
 
             {saved && (
                 <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/30 text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
-                    <CheckCircle className="w-5 h-5" /> Settings saved!
+                    <CheckCircle className="w-5 h-5" /> Profile saved!
                 </div>
             )}
 
-            {/* Profile */}
+            {/* Profile with Gravatar */}
             <div className="glass-card p-6">
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
                     <User className="w-5 h-5 text-primary-500" /> Profile
                 </h3>
                 <div className="flex items-center gap-4 mb-6">
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-400 to-accent-400 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
-                        {user?.name?.charAt(0) || 'U'}
-                    </div>
+                    <img
+                        src={getGravatarUrl(user?.email, 128)}
+                        alt={user?.name}
+                        className="w-16 h-16 rounded-2xl ring-4 ring-white/10 shadow-lg object-cover"
+                    />
                     <div>
                         <h4 className="font-semibold text-gray-800 dark:text-white">{user?.name}</h4>
                         <p className="text-sm text-gray-500">{user?.email}</p>
@@ -88,8 +123,116 @@ export default function SettingsPage() {
             </div>
 
             <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save Profile
             </button>
+
+            {/* Admin/Librarian Library Settings */}
+            {isAdmin && (
+                <>
+                    <div className="pt-4 border-t border-gray-200/30 dark:border-gray-700/30">
+                        <h2 className="text-xl font-bold font-display text-gray-900 dark:text-white flex items-center gap-2">
+                            <Sparkles className="w-5 h-5 text-amber-500" /> Library Settings
+                        </h2>
+                        <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Configure system-wide library settings</p>
+                    </div>
+
+                    {savedLib && (
+                        <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/30 text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+                            <CheckCircle className="w-5 h-5" /> Library settings saved!
+                        </div>
+                    )}
+
+                    {/* Due Date & Fine Settings */}
+                    <div className="glass-card p-6">
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                            <Calendar className="w-5 h-5 text-violet-500" /> Issue & Fine Configuration
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Default Due Period (days)</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="365"
+                                    value={appSettings.defaultDueDays}
+                                    onChange={e => setAppSettings(p => ({ ...p, defaultDueDays: parseInt(e.target.value) || 14 }))}
+                                    className="input-glass w-full"
+                                />
+                                <p className="text-[11px] text-gray-400 mt-1">Books issued for this many days</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Fine Per Day (₹)</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={appSettings.finePerDay}
+                                    onChange={e => setAppSettings(p => ({ ...p, finePerDay: parseInt(e.target.value) || 5 }))}
+                                    className="input-glass w-full"
+                                />
+                                <p className="text-[11px] text-gray-400 mt-1">Charged per day for overdue</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Lost Book Fine (₹)</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={appSettings.lostBookFine || 500}
+                                    onChange={e => setAppSettings(p => ({ ...p, lostBookFine: parseInt(e.target.value) || 500 }))}
+                                    className="input-glass w-full"
+                                />
+                                <p className="text-[11px] text-gray-400 mt-1">Penalty when book is reported lost</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Email Notification Settings */}
+                    <div className="glass-card p-6">
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-2 flex items-center gap-2">
+                            <Send className="w-5 h-5 text-cyan-500" /> Email Notifications (EmailJS)
+                        </h3>
+                        <p className="text-xs text-gray-400 mb-4">
+                            Free email notifications via <a href="https://www.emailjs.com" target="_blank" rel="noopener" className="text-violet-400 hover:underline">emailjs.com</a>.
+                            Create a free account, set up a service + template, and paste your keys below.
+                        </p>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Service ID</label>
+                                <input
+                                    type="text"
+                                    value={appSettings.emailjsServiceId}
+                                    onChange={e => setAppSettings(p => ({ ...p, emailjsServiceId: e.target.value }))}
+                                    className="input-glass w-full"
+                                    placeholder="e.g. service_abc123"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Template ID</label>
+                                <input
+                                    type="text"
+                                    value={appSettings.emailjsTemplateId}
+                                    onChange={e => setAppSettings(p => ({ ...p, emailjsTemplateId: e.target.value }))}
+                                    className="input-glass w-full"
+                                    placeholder="e.g. template_xyz789"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Public Key</label>
+                                <input
+                                    type="text"
+                                    value={appSettings.emailjsPublicKey}
+                                    onChange={e => setAppSettings(p => ({ ...p, emailjsPublicKey: e.target.value }))}
+                                    className="input-glass w-full"
+                                    placeholder="e.g. user_def456"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <button onClick={handleSaveLibSettings} disabled={savingLib} className="btn-primary flex items-center gap-2">
+                        {savingLib ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save Library Settings
+                    </button>
+                </>
+            )}
         </div>
     );
 }

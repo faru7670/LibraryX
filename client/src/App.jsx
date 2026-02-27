@@ -54,6 +54,7 @@ function AppRoutes() {
                     <Route path="/books" element={<Suspense fallback={<PageLoader />}><BooksPage /></Suspense>} />
                     <Route path="/my-books" element={<Suspense fallback={<PageLoader />}><BooksPage /></Suspense>} />
                     <Route path="/issues" element={<ProtectedRoute allowedRoles={['librarian', 'admin']}><Suspense fallback={<PageLoader />}><IssuesPage /></Suspense></ProtectedRoute>} />
+                    <Route path="/faculty-issues" element={<ProtectedRoute allowedRoles={['faculty']}><Suspense fallback={<PageLoader />}><IssuesPage /></Suspense></ProtectedRoute>} />
                     <Route path="/users" element={<ProtectedRoute allowedRoles={['admin']}><Suspense fallback={<PageLoader />}><UsersPage /></Suspense></ProtectedRoute>} />
                     <Route path="/analytics" element={<ProtectedRoute allowedRoles={['admin']}><Suspense fallback={<PageLoader />}><DashboardRouter /></Suspense></ProtectedRoute>} />
                     <Route path="/audit-log" element={<ProtectedRoute allowedRoles={['admin']}><Suspense fallback={<PageLoader />}><ActivityPage /></Suspense></ProtectedRoute>} />

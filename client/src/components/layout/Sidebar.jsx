@@ -2,14 +2,25 @@ import { useState } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { getGravatarUrl } from '../../utils/gravatar';
 import {
     LayoutDashboard, BookOpen, BookCopy, Clock, Bell, Settings, LogOut,
     Users, BarChart3, ClipboardList, ChevronLeft, ChevronRight,
-    Moon, Sun, Library, BookMarked, CalendarClock, ShieldCheck, Menu, X
+    Moon, Sun, Library, BookMarked, CalendarClock, ShieldCheck, Menu, X,
+    GraduationCap, Sparkles
 } from 'lucide-react';
 
 const navItems = {
     student: [
+        { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+        { to: '/books', icon: BookOpen, label: 'Browse Books' },
+        { to: '/my-books', icon: BookCopy, label: 'My Books' },
+        { to: '/reservations', icon: CalendarClock, label: 'Reservations' },
+        { to: '/history', icon: Clock, label: 'Activity History' },
+        { to: '/notifications', icon: Bell, label: 'Notifications' },
+        { to: '/settings', icon: Settings, label: 'Settings' },
+    ],
+    faculty: [
         { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
         { to: '/books', icon: BookOpen, label: 'Browse Books' },
         { to: '/my-books', icon: BookCopy, label: 'My Books' },
@@ -40,6 +51,20 @@ const navItems = {
     ],
 };
 
+const roleBadgeColors = {
+    student: 'bg-blue-500/15 text-blue-400',
+    faculty: 'bg-amber-500/15 text-amber-400',
+    librarian: 'bg-emerald-500/15 text-emerald-400',
+    admin: 'bg-red-500/15 text-red-400',
+};
+
+const roleIcons = {
+    student: BookMarked,
+    faculty: GraduationCap,
+    librarian: BookOpen,
+    admin: ShieldCheck,
+};
+
 export default function Sidebar() {
     const { user, logout } = useAuth();
     const { darkMode, toggleTheme } = useTheme();
@@ -50,6 +75,7 @@ export default function Sidebar() {
 
     const role = user?.role || 'student';
     const items = navItems[role] || navItems.student;
+    const RoleIcon = roleIcons[role] || BookMarked;
 
     const handleLogout = () => {
         logout();
@@ -71,16 +97,25 @@ export default function Sidebar() {
                 )}
             </div>
 
-            {/* User Info */}
+            {/* User Info with Gravatar */}
             {!collapsed && user && (
                 <div className="px-4 py-4 border-b border-gray-200/20 dark:border-gray-700/30">
                     <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-fuchsia-400 to-cyan-400 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+                        <img
+                            src={getGravatarUrl(user.email, 72)}
+                            alt={user.name}
+                            className="w-9 h-9 rounded-full ring-2 ring-white/10 flex-shrink-0 object-cover"
+                            onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+                        />
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-fuchsia-400 to-cyan-400 items-center justify-center text-white font-semibold text-sm flex-shrink-0 hidden">
                             {user.name?.charAt(0) || '?'}
                         </div>
                         <div className="min-w-0">
                             <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{user.name}</p>
-                            <p className="text-[11px] text-gray-400 capitalize">{user.role}</p>
+                            <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-medium capitalize ${roleBadgeColors[role] || roleBadgeColors.student}`}>
+                                <RoleIcon className="w-3 h-3" />
+                                {user.role}
+                            </span>
                         </div>
                     </div>
                 </div>

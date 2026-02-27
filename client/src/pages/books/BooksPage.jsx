@@ -1,11 +1,32 @@
-import { useState, useEffect } from 'react';
-import { Search, Filter, Grid3X3, List, BookOpen, ChevronDown, Plus, Loader2, BookMarked } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Search, Filter, Grid3X3, List, BookOpen, ChevronDown, Plus, Loader2, BookMarked, Camera, ImagePlus, X } from 'lucide-react';
 import { getBooks, addBook } from '../../services/bookService';
 import { reserveBook } from '../../services/reservationService';
 import { useAuth } from '../../context/AuthContext';
 
 const categories = ['All', 'Computer Science', 'Software Engineering', 'Electronics', 'Mechanical', 'Civil', 'Mathematics'];
 const coverColors = ['#6366f1', '#14b8a6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981', '#f97316', '#3b82f6'];
+
+// Compress image to base64 data URL (~100KB max for Firestore)
+function compressImage(file, maxWidth = 400, quality = 0.7) {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const ratio = Math.min(maxWidth / img.width, maxWidth / img.height, 1);
+                canvas.width = img.width * ratio;
+                canvas.height = img.height * ratio;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
 
 export default function BooksPage() {
     const { user } = useAuth();
@@ -17,9 +38,12 @@ export default function BooksPage() {
     const [view, setView] = useState('grid');
     const [showFilters, setShowFilters] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
-    const [addForm, setAddForm] = useState({ title: '', author: '', isbn: '', category: 'Computer Science', publisher: '', year: 2024, totalCopies: 1 });
+    const [addForm, setAddForm] = useState({ title: '', author: '', isbn: '', category: 'Computer Science', publisher: '', year: 2024, totalCopies: 1, coverImage: null });
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState(null);
+    const [imagePreview, setImagePreview] = useState(null);
+    const fileInputRef = useRef(null);
+    const cameraInputRef = useRef(null);
 
     const canManage = user?.role === 'librarian' || user?.role === 'admin';
 
@@ -38,6 +62,25 @@ export default function BooksPage() {
         setLoading(false);
     }
 
+    const handleImageSelect = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+            const compressed = await compressImage(file);
+            setImagePreview(compressed);
+            setAddForm(p => ({ ...p, coverImage: compressed }));
+        } catch (err) {
+            console.error('Image compression failed:', err);
+        }
+    };
+
+    const clearImage = () => {
+        setImagePreview(null);
+        setAddForm(p => ({ ...p, coverImage: null }));
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        if (cameraInputRef.current) cameraInputRef.current.value = '';
+    };
+
     const handleAddBook = async () => {
         if (!addForm.title || !addForm.author) return;
         setSaving(true);
@@ -45,7 +88,8 @@ export default function BooksPage() {
             const colorIdx = Math.floor(Math.random() * coverColors.length);
             await addBook({ ...addForm, coverColor: coverColors[colorIdx] }, user);
             setShowAddModal(false);
-            setAddForm({ title: '', author: '', isbn: '', category: 'Computer Science', publisher: '', year: 2024, totalCopies: 1 });
+            setAddForm({ title: '', author: '', isbn: '', category: 'Computer Science', publisher: '', year: 2024, totalCopies: 1, coverImage: null });
+            setImagePreview(null);
             setMessage({ type: 'success', text: `"${addForm.title}" added successfully!` });
             fetchBooks();
         } catch (err) {
@@ -126,14 +170,18 @@ export default function BooksPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {books.map((book) => (
                         <div key={book.id} className="glass-card overflow-hidden group hover:scale-[1.02] transition-transform duration-300">
-                            <div className="h-40 flex items-center justify-center relative" style={{ backgroundColor: (book.coverColor || '#6366f1') + '15' }}>
-                                <div className="w-20 h-28 rounded-lg shadow-lg transform group-hover:-translate-y-1 transition-transform duration-300" style={{ backgroundColor: book.coverColor || '#6366f1' }}>
-                                    <div className="p-2 h-full flex flex-col justify-between">
-                                        <div className="w-full h-1 bg-white/20 rounded" />
-                                        <div className="space-y-1"><div className="w-full h-0.5 bg-white/15 rounded" /><div className="w-3/4 h-0.5 bg-white/15 rounded" /></div>
-                                        <BookOpen className="w-4 h-4 text-white/30" />
+                            <div className="h-40 flex items-center justify-center relative overflow-hidden" style={{ backgroundColor: (book.coverColor || '#6366f1') + '15' }}>
+                                {book.coverImage ? (
+                                    <img src={book.coverImage} alt={book.title} className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-20 h-28 rounded-lg shadow-lg transform group-hover:-translate-y-1 transition-transform duration-300" style={{ backgroundColor: book.coverColor || '#6366f1' }}>
+                                        <div className="p-2 h-full flex flex-col justify-between">
+                                            <div className="w-full h-1 bg-white/20 rounded" />
+                                            <div className="space-y-1"><div className="w-full h-0.5 bg-white/15 rounded" /><div className="w-3/4 h-0.5 bg-white/15 rounded" /></div>
+                                            <BookOpen className="w-4 h-4 text-white/30" />
+                                        </div>
                                     </div>
-                                </div>
+                                )}
                                 <div className={`absolute top-3 right-3 badge ${book.availableCopies > 0 ? 'badge-success' : 'badge-danger'}`}>
                                     {book.availableCopies > 0 ? 'Available' : 'Unavailable'}
                                 </div>
@@ -145,7 +193,7 @@ export default function BooksPage() {
                                     <span className="badge badge-info text-[10px]">{book.category}</span>
                                     <span className="text-xs text-gray-400">{book.availableCopies}/{book.totalCopies}</span>
                                 </div>
-                                {book.availableCopies <= 0 && user?.role === 'student' && (
+                                {book.availableCopies <= 0 && (user?.role === 'student' || user?.role === 'faculty') && (
                                     <button onClick={() => handleReserve(book)} className="mt-3 w-full text-xs btn-secondary py-1.5 flex items-center justify-center gap-1">
                                         <BookMarked className="w-3 h-3" /> Reserve
                                     </button>
@@ -158,7 +206,11 @@ export default function BooksPage() {
                 <div className="space-y-2">
                     {books.map((book) => (
                         <div key={book.id} className="glass-card p-4 flex items-center gap-4">
-                            <div className="w-10 h-14 rounded-lg flex-shrink-0 shadow-md" style={{ backgroundColor: book.coverColor || '#6366f1' }} />
+                            {book.coverImage ? (
+                                <img src={book.coverImage} alt={book.title} className="w-10 h-14 rounded-lg flex-shrink-0 shadow-md object-cover" />
+                            ) : (
+                                <div className="w-10 h-14 rounded-lg flex-shrink-0 shadow-md" style={{ backgroundColor: book.coverColor || '#6366f1' }} />
+                            )}
                             <div className="flex-1 min-w-0">
                                 <h3 className="font-semibold text-gray-800 dark:text-white text-sm truncate">{book.title}</h3>
                                 <p className="text-xs text-gray-500 dark:text-gray-400">{book.author} · {book.year}</p>
@@ -180,12 +232,46 @@ export default function BooksPage() {
                 </div>
             )}
 
-            {/* Add Book Modal */}
+            {/* Add Book Modal with Cover Image */}
             {showAddModal && (
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                     <div className="glass-card p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
                         <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">Add New Book</h3>
                         <div className="space-y-3">
+                            {/* Cover Image Upload */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Book Cover Photo</label>
+                                {imagePreview ? (
+                                    <div className="relative w-full h-40 rounded-xl overflow-hidden border border-white/10 mb-2">
+                                        <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                                        <button onClick={clearImage} className="absolute top-2 right-2 p-1 rounded-full bg-black/50 text-white hover:bg-black/70">
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="flex gap-2 mb-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="flex-1 py-3 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-violet-400 dark:hover:border-violet-500 transition-colors flex flex-col items-center gap-1.5 text-gray-500 hover:text-violet-500"
+                                        >
+                                            <ImagePlus className="w-5 h-5" />
+                                            <span className="text-xs font-medium">Upload Photo</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => cameraInputRef.current?.click()}
+                                            className="flex-1 py-3 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-cyan-400 dark:hover:border-cyan-500 transition-colors flex flex-col items-center gap-1.5 text-gray-500 hover:text-cyan-500"
+                                        >
+                                            <Camera className="w-5 h-5" />
+                                            <span className="text-xs font-medium">Take Photo</span>
+                                        </button>
+                                    </div>
+                                )}
+                                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
+                                <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleImageSelect} className="hidden" />
+                            </div>
+
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title *</label>
                                 <input type="text" value={addForm.title} onChange={(e) => setAddForm(p => ({ ...p, title: e.target.value }))} className="input-glass w-full" placeholder="Book title" />
@@ -221,7 +307,7 @@ export default function BooksPage() {
                                 <input type="text" value={addForm.publisher} onChange={(e) => setAddForm(p => ({ ...p, publisher: e.target.value }))} className="input-glass w-full" placeholder="Publisher name" />
                             </div>
                             <div className="flex gap-3 pt-2">
-                                <button onClick={() => setShowAddModal(false)} className="btn-secondary flex-1">Cancel</button>
+                                <button onClick={() => { setShowAddModal(false); clearImage(); }} className="btn-secondary flex-1">Cancel</button>
                                 <button onClick={handleAddBook} disabled={saving} className="btn-primary flex-1 flex items-center justify-center gap-2">
                                     {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add Book'}
                                 </button>

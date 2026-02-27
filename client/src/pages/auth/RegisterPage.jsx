@@ -75,6 +75,7 @@ export default function RegisterPage() {
                                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Role</label>
                                 <select value={role} onChange={e => setRole(e.target.value)} className="input-glass w-full" disabled={isLoading}>
                                     <option value="student">Student</option>
+                                    <option value="faculty">Faculty</option>
                                     <option value="librarian">Librarian</option>
                                     <option value="admin">Admin</option>
                                 </select>
