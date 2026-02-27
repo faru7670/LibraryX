@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { BookOpen, Clock, AlertTriangle, TrendingUp, Loader2 } from 'lucide-react';
 import { getStudentStats } from '../../services/analyticsService';
 
 export default function StudentDashboard() {
     const { user, authError } = useAuth();
+    const navigate = useNavigate();
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -16,10 +18,10 @@ export default function StudentDashboard() {
     if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-violet-500" /></div>;
 
     const cards = [
-        { label: 'Books Issued', value: stats?.issuedCount || 0, icon: BookOpen, color: 'from-blue-500 to-cyan-500' },
-        { label: 'Overdue', value: stats?.overdueCount || 0, icon: AlertTriangle, color: 'from-red-500 to-rose-500' },
-        { label: 'Total Read', value: stats?.totalRead || 0, icon: TrendingUp, color: 'from-emerald-500 to-teal-500' },
-        { label: 'Fines', value: `₹${stats?.totalFines || 0}`, icon: Clock, color: 'from-amber-500 to-orange-500' },
+        { label: 'Books Issued', value: stats?.issuedCount || 0, icon: BookOpen, color: 'from-blue-500 to-cyan-500', route: '/my-books' },
+        { label: 'Overdue', value: stats?.overdueCount || 0, icon: AlertTriangle, color: 'from-red-500 to-rose-500', route: '/my-books' },
+        { label: 'Total Read', value: stats?.totalRead || 0, icon: TrendingUp, color: 'from-emerald-500 to-teal-500', route: '/history' },
+        { label: 'Fines', value: `₹${stats?.totalFines || 0}`, icon: Clock, color: 'from-amber-500 to-orange-500', route: '/history' },
     ];
 
     return (
@@ -41,8 +43,8 @@ export default function StudentDashboard() {
                 {cards.map((s, i) => {
                     const Icon = s.icon;
                     return (
-                        <div key={i} className="stat-card">
-                            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${s.color} flex items-center justify-center mb-3 shadow-lg`}>
+                        <div key={i} className="stat-card cursor-pointer group hover:scale-[1.02] transition-transform duration-300" onClick={() => navigate(s.route)}>
+                            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${s.color} flex items-center justify-center mb-3 shadow-lg group-hover:shadow-xl transition-shadow`}>
                                 <Icon className="w-5 h-5 text-white" />
                             </div>
                             <p className="text-2xl font-bold text-gray-900 dark:text-white">{s.value}</p>

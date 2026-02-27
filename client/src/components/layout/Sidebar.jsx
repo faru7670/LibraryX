@@ -44,7 +44,6 @@ const navItems = {
         { to: '/issues', icon: BookCopy, label: 'Issue / Return' },
         { to: '/users', icon: Users, label: 'Users' },
         { to: '/reservations', icon: CalendarClock, label: 'Reservations' },
-        { to: '/analytics', icon: BarChart3, label: 'Analytics' },
         { to: '/audit-log', icon: ShieldCheck, label: 'Audit Log' },
         { to: '/notifications', icon: Bell, label: 'Notifications' },
         { to: '/settings', icon: Settings, label: 'Settings' },

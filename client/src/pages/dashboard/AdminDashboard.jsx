@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { BookOpen, Users, DollarSign, AlertTriangle, Loader2, Database } from 'lucide-react';
 import { getAdminStats } from '../../services/analyticsService';
@@ -6,6 +7,7 @@ import { seedBooks } from '../../services/bookService';
 
 export default function AdminDashboard() {
     const { user, authError } = useAuth();
+    const navigate = useNavigate();
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [seeding, setSeeding] = useState(false);
@@ -29,10 +31,10 @@ export default function AdminDashboard() {
     if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-violet-500" /></div>;
 
     const cards = [
-        { label: 'Total Books', value: stats?.totalBooks || 0, sub: `${stats?.issuedCount || 0} issued`, icon: BookOpen, color: 'from-blue-500 to-cyan-500' },
-        { label: 'Users', value: stats?.totalUsers || 0, sub: `${stats?.studentCount || 0} students`, icon: Users, color: 'from-emerald-500 to-teal-500' },
-        { label: 'Fines', value: `₹${stats?.totalFines || 0}`, sub: 'collected', icon: DollarSign, color: 'from-amber-500 to-orange-500' },
-        { label: 'Overdue', value: `${stats?.overdueRate || 0}%`, sub: 'rate', icon: AlertTriangle, color: 'from-red-500 to-rose-500' },
+        { label: 'Total Books', value: stats?.totalBooks || 0, sub: `${stats?.issuedCount || 0} issued`, icon: BookOpen, color: 'from-blue-500 to-cyan-500', route: '/books' },
+        { label: 'Users', value: stats?.totalUsers || 0, sub: `${stats?.studentCount || 0} students`, icon: Users, color: 'from-emerald-500 to-teal-500', route: '/users' },
+        { label: 'Fines', value: `₹${stats?.totalFines || 0}`, sub: 'collected', icon: DollarSign, color: 'from-amber-500 to-orange-500', route: '/audit-log' },
+        { label: 'Overdue', value: `${stats?.overdueRate || 0}%`, sub: 'rate', icon: AlertTriangle, color: 'from-red-500 to-rose-500', route: '/issues' },
     ];
 
     return (
@@ -54,8 +56,8 @@ export default function AdminDashboard() {
                 {cards.map((s, i) => {
                     const Icon = s.icon;
                     return (
-                        <div key={i} className="stat-card">
-                            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${s.color} flex items-center justify-center mb-3 shadow-lg`}>
+                        <div key={i} className="stat-card cursor-pointer group hover:scale-[1.02] transition-transform duration-300" onClick={() => navigate(s.route)}>
+                            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${s.color} flex items-center justify-center mb-3 shadow-lg group-hover:shadow-xl transition-shadow`}>
                                 <Icon className="w-5 h-5 text-white" />
                             </div>
                             <p className="text-2xl font-bold text-gray-900 dark:text-white">{s.value}</p>
