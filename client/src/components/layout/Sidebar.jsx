@@ -90,7 +90,7 @@ export default function Sidebar() {
                 </div>
                 {!collapsed && (
                     <div className="overflow-hidden">
-                        <h1 className="text-lg font-bold font-display gradient-text tracking-tight">LibraryX</h1>
+                        <h1 className="text-lg font-bold font-display gradient-text tracking-tight">Library X</h1>
                         <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-widest">Management System</p>
                     </div>
                 )}
