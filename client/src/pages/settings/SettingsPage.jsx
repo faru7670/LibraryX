@@ -245,9 +245,25 @@ export default function SettingsPage() {
                     {/* Email Notification Settings */}
                     <div className="glass-card p-6">
                         <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-2 flex items-center gap-2">
-                            <Send className="w-5 h-5 text-cyan-500" /> Email Notifications
+                            <Send className="w-5 h-5 text-cyan-500" /> Email Notifications (EmailJS)
                         </h3>
-                        <p className="text-xs text-gray-400 mb-4">Emails are automatically sent when books are issued, returned, or reported lost.</p>
+                        <p className="text-xs text-gray-400 mb-4">
+                            Emails are sent automatically on book issue/return/lost. Change keys below to use a different EmailJS account.
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                            <div>
+                                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Service ID</label>
+                                <input type="text" value={appSettings.emailjsServiceId} onChange={e => setAppSettings(p => ({ ...p, emailjsServiceId: e.target.value }))} className="input-glass w-full text-xs" placeholder="service_..." />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Template ID</label>
+                                <input type="text" value={appSettings.emailjsTemplateId} onChange={e => setAppSettings(p => ({ ...p, emailjsTemplateId: e.target.value }))} className="input-glass w-full text-xs" placeholder="template_..." />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Public Key</label>
+                                <input type="text" value={appSettings.emailjsPublicKey} onChange={e => setAppSettings(p => ({ ...p, emailjsPublicKey: e.target.value }))} className="input-glass w-full text-xs" placeholder="user_..." />
+                            </div>
+                        </div>
 
                         {/* Test Email */}
                         <div className="flex items-center gap-3">

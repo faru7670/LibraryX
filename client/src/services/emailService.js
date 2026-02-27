@@ -1,21 +1,38 @@
 // Email Notification Service — Uses EmailJS (free tier: 200 emails/month)
 import emailjs from '@emailjs/browser';
+import { getAppSettings } from './settingsService';
 
-// Hardcoded EmailJS credentials
-const EMAILJS_SERVICE_ID = 'service_s9wogqc';
-const EMAILJS_TEMPLATE_ID = 'template_4jjct3n';
-const EMAILJS_PUBLIC_KEY = '_B8LRrfbNPBXmrkSY';
+// Default keys (can be overridden in admin Settings)
+const DEFAULT_SERVICE_ID = 'service_s9wogqc';
+const DEFAULT_TEMPLATE_ID = 'template_4jjct3n';
+const DEFAULT_PUBLIC_KEY = '_B8LRrfbNPBXmrkSY';
 
-// Initialize EmailJS
-emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+async function getEmailConfig() {
+    try {
+        const settings = await getAppSettings();
+        return {
+            serviceId: settings.emailjsServiceId || DEFAULT_SERVICE_ID,
+            templateId: settings.emailjsTemplateId || DEFAULT_TEMPLATE_ID,
+            publicKey: settings.emailjsPublicKey || DEFAULT_PUBLIC_KEY,
+        };
+    } catch {
+        return {
+            serviceId: DEFAULT_SERVICE_ID,
+            templateId: DEFAULT_TEMPLATE_ID,
+            publicKey: DEFAULT_PUBLIC_KEY,
+        };
+    }
+}
 
 /**
- * Send notification email to a user.
- * Silently fails on error — never blocks the main workflow.
+ * Send notification email. Silently fails — never blocks main workflow.
  */
 export async function sendNotificationEmail(toEmail, toName, subject, message) {
     try {
-        const result = await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+        const config = await getEmailConfig();
+        emailjs.init({ publicKey: config.publicKey });
+
+        await emailjs.send(config.serviceId, config.templateId, {
             to_email: toEmail,
             to_name: toName,
             subject: subject,
@@ -23,20 +40,20 @@ export async function sendNotificationEmail(toEmail, toName, subject, message) {
             from_name: 'LibraryX',
             reply_to: 'noreply@libraryx.app',
         });
-
-        console.log(`📧 Email sent to ${toEmail}`, result);
+        console.log(`📧 Email sent to ${toEmail}`);
     } catch (err) {
-        // Never throw — email failures should not block core functionality
         console.warn('Email notification failed (non-blocking):', err);
     }
 }
 
 /**
- * Send a test email to verify EmailJS is working.
- * THROWS on error so the UI can show the error message.
+ * Send test email. THROWS on error for UI feedback.
  */
 export async function sendTestEmail(toEmail, toName) {
-    const result = await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+    const config = await getEmailConfig();
+    emailjs.init({ publicKey: config.publicKey });
+
+    return await emailjs.send(config.serviceId, config.templateId, {
         to_email: toEmail,
         to_name: toName,
         subject: '✅ LibraryX Test Email',
@@ -44,6 +61,4 @@ export async function sendTestEmail(toEmail, toName) {
         from_name: 'LibraryX',
         reply_to: 'noreply@libraryx.app',
     });
-
-    return result;
 }

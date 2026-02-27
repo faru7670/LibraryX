@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, Filter, Grid3X3, List, BookOpen, ChevronDown, Plus, Loader2, BookMarked, Camera, ImagePlus, X } from 'lucide-react';
-import { getBooks, addBook } from '../../services/bookService';
+import { Search, Filter, Grid3X3, List, BookOpen, ChevronDown, Plus, Loader2, BookMarked, Camera, ImagePlus, X, Pencil, Save } from 'lucide-react';
+import { getBooks, addBook, updateBook } from '../../services/bookService';
 import { reserveBook } from '../../services/reservationService';
 import { useAuth } from '../../context/AuthContext';
 
@@ -44,6 +44,11 @@ export default function BooksPage() {
     const [imagePreview, setImagePreview] = useState(null);
     const fileInputRef = useRef(null);
     const cameraInputRef = useRef(null);
+    // Edit book state
+    const [editBook, setEditBook] = useState(null);
+    const [editForm, setEditForm] = useState({});
+    const [editImagePreview, setEditImagePreview] = useState(null);
+    const editFileRef = useRef(null);
 
     const canManage = user?.role === 'librarian' || user?.role === 'admin';
 
@@ -91,6 +96,35 @@ export default function BooksPage() {
             setAddForm({ title: '', author: '', isbn: '', category: 'Computer Science', publisher: '', year: 2024, totalCopies: 1, coverImage: null });
             setImagePreview(null);
             setMessage({ type: 'success', text: `"${addForm.title}" added successfully!` });
+            fetchBooks();
+        } catch (err) {
+            setMessage({ type: 'error', text: err.message });
+        }
+        setSaving(false);
+        setTimeout(() => setMessage(null), 3000);
+    };
+
+    const openEditModal = (book) => {
+        setEditBook(book);
+        setEditForm({ title: book.title, author: book.author, isbn: book.isbn || '', category: book.category || 'Computer Science', publisher: book.publisher || '', year: book.year || 2024, totalCopies: book.totalCopies || 1, coverImage: book.coverImage || null });
+        setEditImagePreview(book.coverImage || null);
+    };
+
+    const handleEditImageSelect = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const compressed = await compressImage(file);
+        setEditImagePreview(compressed);
+        setEditForm(p => ({ ...p, coverImage: compressed }));
+    };
+
+    const handleEditBook = async () => {
+        if (!editForm.title || !editForm.author) return;
+        setSaving(true);
+        try {
+            await updateBook(editBook.id, editForm, user);
+            setEditBook(null);
+            setMessage({ type: 'success', text: `"${editForm.title}" updated!` });
             fetchBooks();
         } catch (err) {
             setMessage({ type: 'error', text: err.message });
@@ -193,11 +227,18 @@ export default function BooksPage() {
                                     <span className="badge badge-info text-[10px]">{book.category}</span>
                                     <span className="text-xs text-gray-400">{book.availableCopies}/{book.totalCopies}</span>
                                 </div>
-                                {book.availableCopies <= 0 && (user?.role === 'student' || user?.role === 'faculty') && (
-                                    <button onClick={() => handleReserve(book)} className="mt-3 w-full text-xs btn-secondary py-1.5 flex items-center justify-center gap-1">
-                                        <BookMarked className="w-3 h-3" /> Reserve
-                                    </button>
-                                )}
+                                <div className="flex gap-2 mt-3">
+                                    {canManage && (
+                                        <button onClick={() => openEditModal(book)} className="flex-1 text-xs btn-secondary py-1.5 flex items-center justify-center gap-1">
+                                            <Pencil className="w-3 h-3" /> Edit
+                                        </button>
+                                    )}
+                                    {book.availableCopies <= 0 && (user?.role === 'student' || user?.role === 'faculty') && (
+                                        <button onClick={() => handleReserve(book)} className="flex-1 text-xs btn-secondary py-1.5 flex items-center justify-center gap-1">
+                                            <BookMarked className="w-3 h-3" /> Reserve
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     ))}
@@ -312,6 +353,72 @@ export default function BooksPage() {
                                     {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add Book'}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Edit Book Modal */}
+            {editBook && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setEditBook(null)}>
+                    <div className="glass-card p-6 w-full max-w-md max-h-[85vh] overflow-y-auto space-y-4" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><Pencil className="w-5 h-5" /> Edit Book</h2>
+                            <button onClick={() => setEditBook(null)} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><X className="w-5 h-5" /></button>
+                        </div>
+
+                        {/* Cover Image */}
+                        <div className="flex items-center gap-3">
+                            {editImagePreview ? (
+                                <div className="relative">
+                                    <img src={editImagePreview} alt="" className="w-16 h-20 rounded-lg object-cover shadow-md" />
+                                    <button onClick={() => { setEditImagePreview(null); setEditForm(p => ({ ...p, coverImage: null })); }} className="absolute -top-2 -right-2 p-0.5 rounded-full bg-red-500 text-white"><X className="w-3 h-3" /></button>
+                                </div>
+                            ) : (
+                                <div className="w-16 h-20 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center"><BookOpen className="w-6 h-6 text-gray-400" /></div>
+                            )}
+                            <button onClick={() => editFileRef.current?.click()} className="btn-secondary text-xs py-1.5 flex items-center gap-1"><ImagePlus className="w-3 h-3" /> Change Cover</button>
+                            <input ref={editFileRef} type="file" accept="image/*" onChange={handleEditImageSelect} className="hidden" />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title *</label>
+                            <input type="text" value={editForm.title || ''} onChange={(e) => setEditForm(p => ({ ...p, title: e.target.value }))} className="input-glass w-full" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Author *</label>
+                            <input type="text" value={editForm.author || ''} onChange={(e) => setEditForm(p => ({ ...p, author: e.target.value }))} className="input-glass w-full" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ISBN</label>
+                                <input type="text" value={editForm.isbn || ''} onChange={(e) => setEditForm(p => ({ ...p, isbn: e.target.value }))} className="input-glass w-full" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Year</label>
+                                <input type="number" value={editForm.year || 2024} onChange={(e) => setEditForm(p => ({ ...p, year: parseInt(e.target.value) }))} className="input-glass w-full" />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
+                                <select value={editForm.category || 'Computer Science'} onChange={(e) => setEditForm(p => ({ ...p, category: e.target.value }))} className="input-glass w-full">
+                                    {categories.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Total Copies</label>
+                                <input type="number" min="1" value={editForm.totalCopies || 1} onChange={(e) => setEditForm(p => ({ ...p, totalCopies: parseInt(e.target.value) }))} className="input-glass w-full" />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Publisher</label>
+                            <input type="text" value={editForm.publisher || ''} onChange={(e) => setEditForm(p => ({ ...p, publisher: e.target.value }))} className="input-glass w-full" />
+                        </div>
+                        <div className="flex gap-3 pt-2">
+                            <button onClick={() => setEditBook(null)} className="btn-secondary flex-1">Cancel</button>
+                            <button onClick={handleEditBook} disabled={saving} className="btn-primary flex-1 flex items-center justify-center gap-2">
+                                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4" /> Save</>}
+                            </button>
                         </div>
                     </div>
                 </div>
