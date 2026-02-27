@@ -248,7 +248,7 @@ export async function getIssues(userRole, userId) {
     let q;
 
     if (userRole === 'student' || userRole === 'faculty') {
-        q = query(ref, where('userId', '==', userId), orderBy('createdAt', 'desc'));
+        q = query(ref, where('userId', '==', userId));
     } else {
         q = query(ref, orderBy('createdAt', 'desc'));
     }
@@ -281,6 +281,16 @@ export async function getIssues(userRole, userId) {
             createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
         };
     });
+
+    if (userRole === 'student' || userRole === 'faculty') {
+        issues.sort((a, b) => {
+            const dateA = new Date(a.createdAt || 0);
+            const dateB = new Date(b.createdAt || 0);
+            return dateB - dateA;
+        });
+    }
+
+    return issues;
 }
 
 // Get student's or faculty's currently active issues (for dashboard)
