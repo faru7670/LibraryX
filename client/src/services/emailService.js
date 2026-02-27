@@ -1,25 +1,21 @@
 // Email Notification Service — Uses EmailJS (free tier: 200 emails/month)
 import emailjs from '@emailjs/browser';
-import { getAppSettings } from './settingsService';
+
+// Hardcoded EmailJS credentials
+const EMAILJS_SERVICE_ID = 'service_s9wogqc';
+const EMAILJS_TEMPLATE_ID = 'template_e2l9u3g';
+const EMAILJS_PUBLIC_KEY = '_B8LRrfbNPBXmrkSY';
+
+// Initialize EmailJS
+emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
 
 /**
  * Send notification email to a user.
- * Silently fails if EmailJS is not configured — never blocks the main workflow.
+ * Silently fails on error — never blocks the main workflow.
  */
 export async function sendNotificationEmail(toEmail, toName, subject, message) {
     try {
-        const settings = await getAppSettings();
-
-        // Check if EmailJS is configured
-        if (!settings.emailjsPublicKey || !settings.emailjsServiceId || !settings.emailjsTemplateId) {
-            console.log('EmailJS not configured — skipping email notification');
-            return;
-        }
-
-        // Always re-init to pick up any settings changes
-        emailjs.init({ publicKey: settings.emailjsPublicKey });
-
-        const result = await emailjs.send(settings.emailjsServiceId, settings.emailjsTemplateId, {
+        const result = await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
             to_email: toEmail,
             to_name: toName,
             subject: subject,
@@ -36,19 +32,11 @@ export async function sendNotificationEmail(toEmail, toName, subject, message) {
 }
 
 /**
- * Send a test email to verify EmailJS configuration is working.
- * Unlike sendNotificationEmail, this THROWS on error so the UI can show the error.
+ * Send a test email to verify EmailJS is working.
+ * THROWS on error so the UI can show the error message.
  */
 export async function sendTestEmail(toEmail, toName) {
-    const settings = await getAppSettings();
-
-    if (!settings.emailjsPublicKey || !settings.emailjsServiceId || !settings.emailjsTemplateId) {
-        throw new Error('EmailJS is not configured. Please fill in Service ID, Template ID, and Public Key.');
-    }
-
-    emailjs.init({ publicKey: settings.emailjsPublicKey });
-
-    const result = await emailjs.send(settings.emailjsServiceId, settings.emailjsTemplateId, {
+    const result = await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
         to_email: toEmail,
         to_name: toName,
         subject: '✅ LibraryX Test Email',
