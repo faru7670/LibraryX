@@ -40,7 +40,7 @@ export function AuthProvider({ children }) {
             const snap = await getDoc(doc(db, 'users', fbUser.uid));
             if (snap.exists()) {
                 const p = snap.data();
-                const u = { uid: fbUser.uid, email: fbUser.email, name: p.name || fbUser.displayName || 'User', role: p.role, department: p.department || 'General' };
+                const u = { uid: fbUser.uid, email: fbUser.email, name: p.name || fbUser.displayName || 'User', role: p.role, department: p.department || 'General', profileImage: p.profileImage || null };
                 setUser(u);
                 localStorage.setItem('libx_user', JSON.stringify(u));
                 setAuthError('');

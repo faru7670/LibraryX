@@ -102,7 +102,7 @@ export default function Sidebar() {
                 <div className="px-4 py-4 border-b border-gray-200/20 dark:border-gray-700/30">
                     <div className="flex items-center gap-3">
                         <img
-                            src={getGravatarUrl(user.email, 72)}
+                            src={user.profileImage || getGravatarUrl(user.email, 72)}
                             alt={user.name}
                             className="w-9 h-9 rounded-full ring-2 ring-white/10 flex-shrink-0 object-cover"
                             onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
