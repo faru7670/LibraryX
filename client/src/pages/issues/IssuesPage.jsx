@@ -73,16 +73,18 @@ export default function IssuesPage() {
     const handleScanResult = async (scannedUid) => {
         setScannerMode(null); // close scanner
 
+        const [parsedBookId, parsedCopyId] = scannedUid.split('|');
+
         // 1. Issuing a book (Scan Book QR)
         if (scannerMode === 'scanbook') {
-            const foundBook = books.find(b => b.id === scannedUid);
+            const foundBook = books.find(b => b.id === parsedBookId);
             if (!foundBook) {
                 setMessage({ type: 'error', text: 'Book not found in inventory.' });
             } else if (foundBook.availableCopies <= 0) {
                 setMessage({ type: 'error', text: `"${foundBook.title}" has no available copies.` });
             } else {
-                setIssueForm(p => ({ ...p, bookId: foundBook.id }));
-                setMessage({ type: 'success', text: `Book Selected: "${foundBook.title}"` });
+                setIssueForm(p => ({ ...p, bookId: foundBook.id, copyId: parsedCopyId || '' }));
+                setMessage({ type: 'success', text: `Book Selected: "${foundBook.title}" ${parsedCopyId ? `(Copy: ${parsedCopyId})` : ''}` });
             }
             setTimeout(() => setMessage(null), 4000);
             return;
@@ -161,10 +163,16 @@ export default function IssuesPage() {
         if (scannerMode === 'rapidreturn') {
             setProcessing('rapidreturn');
             try {
-                // Find an active issue that matches the scanned book ID
-                const activeIssue = issues.find(i => i.bookId === scannedUid && i.status === 'active');
+                // Find an active issue that matches the scanned book ID and specific copy (if provided)
+                let activeIssue;
+                if (parsedCopyId) {
+                    activeIssue = issues.find(i => i.bookId === parsedBookId && i.copyId === parsedCopyId && i.status === 'issued');
+                } else {
+                    activeIssue = issues.find(i => i.bookId === parsedBookId && i.status === 'issued');
+                }
+
                 if (!activeIssue) {
-                    setMessage({ type: 'error', text: 'No active issue found for this book.' });
+                    setMessage({ type: 'error', text: 'No active issue found for this specific book copy.' });
                 } else {
                     const result = await returnBook(activeIssue.id, user);
                     setMessage({ type: 'success', text: `Verified & Returned! ${result.fineAmount > 0 ? `Fine: ₹${result.fineAmount}` : 'No fine.'}` });
@@ -196,6 +204,7 @@ export default function IssuesPage() {
             await issueBook(
                 {
                     bookId: issueForm.bookId,
+                    copyId: issueForm.copyId,
                     bookTitle: book?.title,
                     userId: issueForm.userId,
                     userName: selectedUser?.name || selectedUser?.email,
@@ -204,12 +213,12 @@ export default function IssuesPage() {
                 },
                 user
             );
-            setMessage({ type: 'success', text: `"${book?.title}" issued to ${selectedUser?.name}!` });
+            setMessage({ type: 'success', text: `"${book?.title}" ${issueForm.copyId ? `(${issueForm.copyId})` : ''} issued to ${selectedUser?.name}!` });
             setShowIssueModal(false);
             // Reset form with default due date
             const defaultDue = new Date();
             defaultDue.setDate(defaultDue.getDate() + (settings.defaultDueDays || 14));
-            setIssueForm({ bookId: '', userId: '', dueDate: defaultDue.toISOString().split('T')[0] });
+            setIssueForm({ bookId: '', copyId: '', userId: '', dueDate: defaultDue.toISOString().split('T')[0] });
             fetchData();
         } catch (err) {
             setMessage({ type: 'error', text: err.message });

@@ -14,7 +14,7 @@ const BOOKS_COL = 'books';
 const RESERVATIONS_COL = 'reservations';
 
 // Issue a book to a student or faculty
-export async function issueBook({ bookId, bookTitle, userId, userName, userEmail, dueDate }, issuedBy) {
+export async function issueBook({ bookId, copyId, bookTitle, userId, userName, userEmail, dueDate }, issuedBy) {
     // Check book availability
     const bookRef = doc(db, BOOKS_COL, bookId);
     const bookSnap = await getDoc(bookRef);
@@ -22,6 +22,25 @@ export async function issueBook({ bookId, bookTitle, userId, userName, userEmail
 
     const book = bookSnap.data();
     if (book.availableCopies <= 0) throw new Error('No copies available');
+
+    let updatedCopies = book.copies ? [...book.copies] : [];
+    let assignedCopyId = copyId;
+
+    if (assignedCopyId) {
+        const copyIndex = updatedCopies.findIndex(c => c.id === assignedCopyId);
+        if (copyIndex !== -1) {
+            if (updatedCopies[copyIndex].status === 'issued') {
+                throw new Error(`Copy ${assignedCopyId} is already issued.`);
+            }
+            updatedCopies[copyIndex] = { ...updatedCopies[copyIndex], status: 'issued' };
+        }
+    } else {
+        const firstAvailIndex = updatedCopies.findIndex(c => c.status === 'available');
+        if (firstAvailIndex !== -1) {
+            updatedCopies[firstAvailIndex] = { ...updatedCopies[firstAvailIndex], status: 'issued' };
+            assignedCopyId = updatedCopies[firstAvailIndex].id;
+        }
+    }
 
     // Use custom due date or calculate from settings
     const issueDate = new Date();
@@ -39,6 +58,7 @@ export async function issueBook({ bookId, bookTitle, userId, userName, userEmail
     // Create issue record
     const issueDoc = await addDoc(collection(db, ISSUES_COL), {
         bookId,
+        copyId: assignedCopyId || '',
         bookTitle: bookTitle || book.title,
         userId,
         userName,
@@ -52,9 +72,10 @@ export async function issueBook({ bookId, bookTitle, userId, userName, userEmail
         createdAt: serverTimestamp(),
     });
 
-    // Decrement available copies
+    // Decrement available copies and update copy status array
     await updateDoc(bookRef, {
         availableCopies: increment(-1),
+        copies: updatedCopies
     });
 
     // Create in-app notification for the user
@@ -90,7 +111,7 @@ export async function issueBook({ bookId, bookTitle, userId, userName, userEmail
         `"${bookTitle || book.title}" was issued to you. Due: ${dueDateStr}`
     );
 
-    return { id: issueDoc.id, bookId, userId, issueDate: issueDate.toISOString().split('T')[0], dueDate: dueDateStr, status: 'issued' };
+    return { id: issueDoc.id, bookId, copyId: assignedCopyId, userId, issueDate: issueDate.toISOString().split('T')[0], dueDate: dueDateStr, status: 'issued' };
 }
 
 // Return a book
@@ -123,10 +144,24 @@ export async function returnBook(issueId, returnedBy) {
         status: 'returned',
     });
 
-    // Restore available copy
+    // Restore available copy and update array
     const bookRef = doc(db, BOOKS_COL, issue.bookId);
+    const bookSnap = await getDoc(bookRef);
+    let updatedCopies = [];
+    if (bookSnap.exists()) {
+        const bookData = bookSnap.data();
+        updatedCopies = bookData.copies ? [...bookData.copies] : [];
+        if (issue.copyId) {
+            const idx = updatedCopies.findIndex(c => c.id === issue.copyId);
+            if (idx !== -1) {
+                updatedCopies[idx] = { ...updatedCopies[idx], status: 'available' };
+            }
+        }
+    }
+
     await updateDoc(bookRef, {
         availableCopies: increment(1),
+        ...(updatedCopies.length > 0 && { copies: updatedCopies })
     });
 
     // In-app notification for the user

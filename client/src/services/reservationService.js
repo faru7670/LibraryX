@@ -30,7 +30,7 @@ export async function reserveBook(bookId, bookTitle, user) {
         bookTitle,
         userId: user.uid,
         userName: user.displayName || user.email,
-        reservedAt: new Date().toISOString().split('T')[0],
+        reservedAt: new Date().toISOString(),
         position,
         status: 'waiting',
         createdAt: serverTimestamp(),

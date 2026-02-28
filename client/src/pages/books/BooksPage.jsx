@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search, Filter, Grid3X3, List, BookOpen, ChevronDown, Plus, Loader2, BookMarked, Camera, ImagePlus, X, Pencil, Save, QrCode, Download } from 'lucide-react';
-import { getBooks, addBook, updateBook } from '../../services/bookService';
+import { getBooks, addBook, updateBook, addStock } from '../../services/bookService';
 import { reserveBook } from '../../services/reservationService';
 import { useAuth } from '../../context/AuthContext';
 import { QRCodeSVG } from 'qrcode.react';
@@ -40,7 +40,7 @@ export default function BooksPage() {
     const [view, setView] = useState('grid');
     const [showFilters, setShowFilters] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
-    const [addForm, setAddForm] = useState({ title: '', author: '', isbn: '', category: 'Computer Science', publisher: '', year: 2024, totalCopies: 1, coverImage: null });
+    const [addForm, setAddForm] = useState({ title: '', author: '', isbn: '', category: 'Computer Science', publisher: '', year: 2024, totalCopies: 1, coverImage: null, prefix: '' });
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
@@ -53,6 +53,9 @@ export default function BooksPage() {
     const editFileRef = useRef(null);
     // QR Code Modal State
     const [qrBook, setQrBook] = useState(null);
+    // Add Stock Modal State
+    const [stockBook, setStockBook] = useState(null);
+    const [stockAmount, setStockAmount] = useState(1);
 
     const canManage = user?.role === 'librarian' || user?.role === 'admin';
 
@@ -97,7 +100,7 @@ export default function BooksPage() {
             const colorIdx = Math.floor(Math.random() * coverColors.length);
             await addBook({ ...addForm, coverColor: coverColors[colorIdx] }, user);
             setShowAddModal(false);
-            setAddForm({ title: '', author: '', isbn: '', category: 'Computer Science', publisher: '', year: 2024, totalCopies: 1, coverImage: null });
+            setAddForm({ title: '', author: '', isbn: '', category: 'Computer Science', publisher: '', year: 2024, totalCopies: 1, coverImage: null, prefix: '' });
             setImagePreview(null);
             setMessage({ type: 'success', text: `"${addForm.title}" added successfully!` });
             fetchBooks();
@@ -129,6 +132,21 @@ export default function BooksPage() {
             await updateBook(editBook.id, editForm, user);
             setEditBook(null);
             setMessage({ type: 'success', text: `"${editForm.title}" updated!` });
+            fetchBooks();
+        } catch (err) {
+            setMessage({ type: 'error', text: err.message });
+        }
+        setSaving(false);
+        setTimeout(() => setMessage(null), 3000);
+    };
+
+    const handleAddStock = async () => {
+        setSaving(true);
+        try {
+            await addStock(stockBook.id, stockAmount, user);
+            setMessage({ type: 'success', text: `Added ${stockAmount} copies to "${stockBook.title}"!` });
+            setStockBook(null);
+            setStockAmount(1);
             fetchBooks();
         } catch (err) {
             setMessage({ type: 'error', text: err.message });
@@ -254,7 +272,10 @@ export default function BooksPage() {
                                     {canManage && (
                                         <>
                                             <button onClick={() => setQrBook(book)} className="flex-1 text-xs btn-secondary py-1.5 flex items-center justify-center gap-1">
-                                                <QrCode className="w-3 h-3" /> QR Setup
+                                                <QrCode className="w-3 h-3" /> QR
+                                            </button>
+                                            <button onClick={() => setStockBook(book)} className="flex-1 text-xs btn-secondary py-1.5 flex items-center justify-center gap-1 border-l sm:border-l-0 sm:border-r border-gray-200 dark:border-gray-700">
+                                                <Plus className="w-3 h-3" /> Stock
                                             </button>
                                             <button onClick={() => openEditModal(book)} className="flex-1 text-xs btn-secondary py-1.5 flex items-center justify-center gap-1">
                                                 <Pencil className="w-3 h-3" /> Edit
@@ -344,6 +365,10 @@ export default function BooksPage() {
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title *</label>
                                 <input type="text" value={addForm.title} onChange={(e) => setAddForm(p => ({ ...p, title: e.target.value }))} className="input-glass w-full" placeholder="Book title" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Prefix (Auto-generated if empty)</label>
+                                <input type="text" value={addForm.prefix} onChange={(e) => setAddForm(p => ({ ...p, prefix: e.target.value }))} className="input-glass w-full text-transform-uppercase" placeholder="e.g. JAVA" />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Author *</label>
@@ -466,20 +491,26 @@ export default function BooksPage() {
                         </div>
 
                         <div className="flex flex-col items-center justify-center p-4">
-                            <div id="book-qr-container" className="bg-white p-4 rounded-xl shadow-sm mb-4 inline-block text-center border-2 border-gray-100">
-                                <p className="text-[10px] font-bold text-gray-800 uppercase tracking-widest mb-2 border-b-2 border-gray-800 pb-1 w-full">LibraryX Tag</p>
-                                <QRCodeSVG
-                                    value={qrBook.id}
-                                    size={160}
-                                    level="H"
-                                    fgColor="#000000"
-                                    className="mx-auto"
-                                />
-                                <p className="text-[10px] font-bold text-gray-800 uppercase tracking-tight mt-2 w-full truncate max-w-[160px]">{qrBook.title}</p>
+                            <div id="book-qr-container" className="bg-white p-4 rounded-xl shadow-sm mb-4 inline-block text-center border-2 border-gray-100 max-h-[60vh] overflow-y-auto w-full">
+                                <p className="text-xs font-bold text-gray-800 uppercase tracking-widest mb-4 border-b-2 border-gray-800 pb-2 w-full truncate">{qrBook.title} Tags</p>
+                                <div className="grid grid-cols-2 gap-4">
+                                    {(qrBook.copies || [{ id: qrBook.prefix ? `${qrBook.prefix}-1` : 'BOK-1' }]).map(copy => (
+                                        <div key={copy.id} className="flex flex-col items-center p-2 border border-gray-200 rounded-lg">
+                                            <QRCodeSVG
+                                                value={`${qrBook.id}|${copy.id}`}
+                                                size={100}
+                                                level="H"
+                                                fgColor="#000000"
+                                                className="mx-auto"
+                                            />
+                                            <p className="text-[12px] font-bold text-gray-900 mt-2">{copy.id}</p>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
 
                             <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-6">
-                                Download this tag and attach it to the physical book to enable rapid scanning during checkout.
+                                Download these tags and attach them to the physical copies.
                             </p>
 
                             <button
@@ -487,6 +518,30 @@ export default function BooksPage() {
                                 className="w-full btn-primary flex items-center justify-center gap-2"
                             >
                                 <Download className="w-4 h-4" /> Download QR Label
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add Stock Modal */}
+            {stockBook && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setStockBook(null)}>
+                    <div className="glass-card p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+                        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                            <Plus className="w-5 h-5" /> Add Stock to Catalog
+                        </h2>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                            Adding physical copies to <b>{stockBook.title}</b>. This will generate unique ID labels for each new copy automatically.
+                        </p>
+                        <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Amount of New Copies</label>
+                            <input type="number" min="1" max="100" value={stockAmount} onChange={e => setStockAmount(parseInt(e.target.value) || 1)} className="input-glass w-full" />
+                        </div>
+                        <div className="flex gap-3">
+                            <button onClick={() => setStockBook(null)} className="btn-secondary flex-1">Cancel</button>
+                            <button onClick={handleAddStock} disabled={saving} className="btn-primary flex-1 flex items-center justify-center gap-2">
+                                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm'}
                             </button>
                         </div>
                     </div>

@@ -2,7 +2,7 @@
 import { db } from '../firebase';
 import {
     collection, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc,
-    query, where, orderBy, serverTimestamp
+    query, where, orderBy, serverTimestamp, increment
 } from 'firebase/firestore';
 import { logActivity } from './activityService';
 
@@ -44,15 +44,69 @@ export async function getBook(bookId) {
 
 // Add a new book (librarian/admin)
 export async function addBook(bookData, user) {
+    const rawPrefix = bookData.prefix || bookData.title.substring(0, 4).toUpperCase();
+    const prefix = rawPrefix.replace(/[^A-Z0-9]/g, '') || 'BOK';
+
+    const copies = [];
+    const total = parseInt(bookData.totalCopies) || 1;
+    for (let i = 1; i <= total; i++) {
+        copies.push({ id: `${prefix}-${i}`, status: 'available' });
+    }
+
     const docRef = await addDoc(collection(db, BOOKS_COL), {
         ...bookData,
-        availableCopies: bookData.totalCopies || 1,
+        prefix,
+        copies,
+        totalCopies: total,
+        availableCopies: total,
         addedBy: user.uid,
         createdAt: serverTimestamp(),
     });
 
     await logActivity(user.uid, user.displayName || user.email, 'book_added', `Added "${bookData.title}"`);
-    return { id: docRef.id, ...bookData };
+    return { id: docRef.id, ...bookData, prefix, copies };
+}
+
+// Add stock to existing book
+export async function addStock(bookId, amount, user) {
+    const bookRef = doc(db, BOOKS_COL, bookId);
+    const bookSnap = await getDoc(bookRef);
+    if (!bookSnap.exists()) throw new Error('Book not found');
+
+    const book = bookSnap.data();
+    const prefix = book.prefix || book.title.substring(0, 4).toUpperCase().replace(/[^A-Z0-9]/g, '') || 'BOK';
+
+    let maxNum = 0;
+    if (book.copies && book.copies.length > 0) {
+        book.copies.forEach(c => {
+            const numPart = c.id.split('-')[1];
+            const num = parseInt(numPart);
+            if (!isNaN(num) && num > maxNum) maxNum = num;
+        });
+    } else {
+        maxNum = book.totalCopies || 0;
+    }
+
+    const addedAmount = parseInt(amount) || 1;
+    const newCopies = [];
+    for (let i = 1; i <= addedAmount; i++) {
+        newCopies.push({ id: `${prefix}-${maxNum + i}`, status: 'available' });
+    }
+
+    const updatedCopies = [...(book.copies || []), ...newCopies];
+
+    await updateDoc(bookRef, {
+        prefix, // in case it was missing
+        copies: updatedCopies,
+        totalCopies: increment(addedAmount),
+        availableCopies: increment(addedAmount)
+    });
+
+    if (user) {
+        await logActivity(user.uid, user.displayName || user.email, 'stock_added', `Added ${addedAmount} copies to "${book.title}"`);
+    }
+
+    return newCopies;
 }
 
 // Update a book

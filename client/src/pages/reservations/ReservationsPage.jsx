@@ -70,7 +70,11 @@ export default function ReservationsPage() {
                             <div className="flex-1 min-w-0">
                                 <h3 className="font-semibold text-gray-800 dark:text-white text-sm">{res.bookTitle || 'Book'}</h3>
                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                    {user?.role !== 'student' && `${res.userName} · `}Reserved on {res.reservedAt}
+                                    {user?.role !== 'student' && `${res.userName} · `}
+                                    Reserved on {new Date(res.reservedAt).toLocaleString('en-US', {
+                                        month: 'short', day: 'numeric', year: 'numeric',
+                                        hour: 'numeric', minute: '2-digit', hour12: true
+                                    })}
                                 </p>
                             </div>
                             <div className="flex items-center gap-3 flex-shrink-0">
