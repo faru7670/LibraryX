@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { BookCopy, RotateCcw, Search, CheckCircle, AlertCircle, Loader2, Calendar, Camera, Image, AlertOctagon, Ban } from 'lucide-react';
+import { BookCopy, RotateCcw, Search, CheckCircle, AlertCircle, Loader2, Calendar, Camera, Image, AlertOctagon, Ban, QrCode } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { getIssues, issueBook, returnBook, reportLostBook } from '../../services/issueService';
+import { getIssues, issueBook, returnBook, reportLostBook, payFine } from '../../services/issueService';
 import { getBooks } from '../../services/bookService';
 import { getAppSettings } from '../../services/settingsService';
+import QRScannerModal from '../../components/ui/QRScannerModal';
 import { db } from '../../firebase';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 
 export default function IssuesPage() {
     const { user } = useAuth();
@@ -16,6 +17,11 @@ export default function IssuesPage() {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showIssueModal, setShowIssueModal] = useState(false);
+
+    // QR Scanner States
+    const [scannerMode, setScannerMode] = useState(null); // 'issue', 'return', 'lost'
+    const [actionPayload, setActionPayload] = useState(null); // stores the issueId for return/lost mid-scan
+
     const [issueForm, setIssueForm] = useState({ bookId: '', userId: '', dueDate: '' });
     const [message, setMessage] = useState(null);
     const [processing, setProcessing] = useState('');
@@ -64,31 +70,80 @@ export default function IssuesPage() {
         return matchTab && matchSearch;
     });
 
-    const handleReportLost = async (issueId) => {
-        if (!confirm('Are you sure this book is lost? A penalty fine will be charged.')) return;
-        setProcessing(issueId);
-        try {
-            const result = await reportLostBook(issueId, user);
-            setMessage({ type: 'error', text: `Book reported as lost. Penalty: ₹${result.fineAmount}` });
-            fetchData();
-        } catch (err) {
-            setMessage({ type: 'error', text: err.message });
+    const handleScanResult = async (scannedUid) => {
+        setScannerMode(null); // close scanner
+
+        // 1. Issuing a book
+        if (scannerMode === 'issue') {
+            const selectedUser = users.find(s => s.id === scannedUid);
+            if (!selectedUser) {
+                setMessage({ type: 'error', text: 'Scanned ID not found or unauthorized.' });
+                setTimeout(() => setMessage(null), 4000);
+                return;
+            }
+            setIssueForm(p => ({ ...p, userId: scannedUid }));
+            return;
         }
-        setProcessing('');
-        setTimeout(() => setMessage(null), 5000);
+
+        // For Return or Lost, verify the scanned UID owns the issue
+        const issueId = actionPayload;
+        const targetIssue = issues.find(i => i.id === issueId);
+
+        if (!targetIssue || targetIssue.userId !== scannedUid) {
+            setMessage({ type: 'error', text: 'Verification Failed: The scanned ID does not belong to the user who borrowed this book.' });
+            setTimeout(() => setMessage(null), 5000);
+            return;
+        }
+
+        // 2. Report Lost
+        if (scannerMode === 'lost') {
+            setProcessing(issueId);
+            try {
+                const result = await reportLostBook(issueId, user);
+                setMessage({ type: 'error', text: `Verified. Book marked as lost. Penalty: ₹${result.fineAmount}` });
+                fetchData();
+            } catch (err) {
+                setMessage({ type: 'error', text: err.message });
+            }
+            setProcessing('');
+            setTimeout(() => setMessage(null), 5000);
+        }
+
+        // 3. Return Book
+        if (scannerMode === 'return') {
+            setProcessing(issueId);
+            try {
+                const result = await returnBook(issueId, user);
+                setMessage({ type: 'success', text: `Verified & Returned! ${result.fineAmount > 0 ? `Fine: ₹${result.fineAmount}` : 'No fine.'}` });
+                fetchData();
+            } catch (err) {
+                setMessage({ type: 'error', text: err.message });
+            }
+            setProcessing('');
+            setTimeout(() => setMessage(null), 4000);
+        }
+
+        // 4. Pay Fine
+        if (scannerMode === 'payfine') {
+            setProcessing(issueId);
+            try {
+                const result = await payFine(issueId, user);
+                setMessage({ type: 'success', text: `Verified! Fine of ₹${result.amount} collected successfully.` });
+                fetchData();
+            } catch (err) {
+                setMessage({ type: 'error', text: err.message });
+            }
+            setProcessing('');
+            setTimeout(() => setMessage(null), 4000);
+        }
     };
 
-    const handleReturn = async (issueId) => {
-        setProcessing(issueId);
-        try {
-            const result = await returnBook(issueId, user);
-            setMessage({ type: 'success', text: `Book returned! ${result.fineAmount > 0 ? `Fine: ₹${result.fineAmount}` : 'No fine.'}` });
-            fetchData();
-        } catch (err) {
-            setMessage({ type: 'error', text: err.message });
+    const confirmActionWithScanner = (mode, issueId = null) => {
+        if (mode === 'lost') {
+            if (!confirm('Are you sure this book is lost? A penalty fine will be charged.')) return;
         }
-        setProcessing('');
-        setTimeout(() => setMessage(null), 4000);
+        setActionPayload(issueId);
+        setScannerMode(mode);
     };
 
     const handleIssue = async () => {
@@ -176,7 +231,7 @@ export default function IssuesPage() {
                                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-3">Due Date</th>
                                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-3">Fine</th>
                                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-3">Status</th>
-                                {tab === 'active' && <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-3">Action</th>}
+                                {(tab === 'active' || canManage) && <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-3">Action</th>}
                             </tr>
                         </thead>
                         <tbody>
@@ -186,7 +241,20 @@ export default function IssuesPage() {
                                     {canManage && <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{issue.userName}</td>}
                                     <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{issue.issueDate}</td>
                                     <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{issue.dueDate}</td>
-                                    <td className="px-6 py-4 text-sm font-semibold text-red-500">{issue.fineAmount > 0 ? `₹${issue.fineAmount}` : '—'}</td>
+                                    <td className="px-6 py-4">
+                                        {issue.fineAmount > 0 ? (
+                                            <div className="flex items-center gap-2">
+                                                <span className={`font-semibold ${issue.fineStatus === 'unpaid' ? 'text-red-500' : 'text-emerald-500'}`}>
+                                                    ₹{issue.fineAmount}
+                                                </span>
+                                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${issue.fineStatus === 'unpaid' ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                                                    {issue.fineStatus.toUpperCase()}
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <span className="text-gray-400">—</span>
+                                        )}
+                                    </td>
                                     <td className="px-6 py-4">
                                         <span className={`badge ${issue.status === 'issued' ? 'badge-info' : issue.status === 'overdue' ? 'badge-danger' : issue.status === 'lost' ? 'bg-gray-800 text-red-300 text-[10px] px-2 py-0.5 rounded-full font-semibold' : 'badge-success'}`}>
                                             {issue.status === 'lost' ? '🚫 LOST' : issue.status}
@@ -196,14 +264,25 @@ export default function IssuesPage() {
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-2">
                                                 {canManage && (
-                                                    <button onClick={() => handleReturn(issue.id)} disabled={processing === issue.id} className="text-xs btn-secondary py-1.5 px-3 flex items-center gap-1 disabled:opacity-50">
-                                                        {processing === issue.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />} Return
+                                                    <button onClick={() => confirmActionWithScanner('return', issue.id)} disabled={processing === issue.id} className="text-xs btn-secondary py-1.5 px-3 flex items-center gap-1 disabled:opacity-50">
+                                                        {processing === issue.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <QrCode className="w-3 h-3" />} Scan & Return
                                                     </button>
                                                 )}
-                                                <button onClick={() => handleReportLost(issue.id)} disabled={processing === issue.id} className="text-xs py-1.5 px-3 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20 flex items-center gap-1 disabled:opacity-50 transition-colors">
-                                                    {processing === issue.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <AlertOctagon className="w-3 h-3" />} Report Lost
+                                                <button onClick={() => confirmActionWithScanner('lost', issue.id)} disabled={processing === issue.id} className="text-xs py-1.5 px-3 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20 flex items-center gap-1 disabled:opacity-50 transition-colors">
+                                                    {processing === issue.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <QrCode className="w-3 h-3 text-red-500" />} Scan & Mark Lost
                                                 </button>
                                             </div>
+                                        </td>
+                                    )}
+                                    {tab !== 'active' && canManage && (
+                                        <td className="px-6 py-4">
+                                            {issue.fineAmount > 0 && issue.fineStatus === 'unpaid' ? (
+                                                <button onClick={() => confirmActionWithScanner('payfine', issue.id)} disabled={processing === issue.id} className="text-xs py-1.5 px-3 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 flex items-center gap-1 disabled:opacity-50 transition-colors">
+                                                    {processing === issue.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <QrCode className="w-3 h-3 text-emerald-500" />} Scan to Pay Fine
+                                                </button>
+                                            ) : (
+                                                <span className="text-xs text-gray-400">—</span>
+                                            )}
                                         </td>
                                     )}
                                 </tr>
@@ -232,13 +311,25 @@ export default function IssuesPage() {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Select User (Student / Faculty)</label>
-                                <select value={issueForm.userId} onChange={(e) => setIssueForm(p => ({ ...p, userId: e.target.value }))} className="input-glass w-full">
-                                    <option value="">Choose a user...</option>
-                                    {users.map(s => (
-                                        <option key={s.id} value={s.id}>{s.name} ({s.email}) — {s.role}</option>
-                                    ))}
-                                </select>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">User Verification</label>
+                                {issueForm.userId ? (
+                                    <div className="p-3 border border-emerald-500/30 bg-emerald-500/10 rounded-xl flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <CheckCircle className="w-4 h-4 text-emerald-500" />
+                                            <span className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
+                                                ID Verified: {users.find(u => u.id === issueForm.userId)?.name}
+                                            </span>
+                                        </div>
+                                        <button onClick={() => setIssueForm(p => ({ ...p, userId: '' }))} className="text-xs text-gray-500 hover:text-gray-700 underline">Change</button>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={() => confirmActionWithScanner('issue')}
+                                        className="w-full py-3 rounded-xl border-2 border-dashed border-violet-300 dark:border-violet-700 hover:bg-violet-50 dark:hover:bg-violet-900/10 text-violet-600 dark:text-violet-400 font-medium flex items-center justify-center gap-2 transition-colors"
+                                    >
+                                        <QrCode className="w-5 h-5" /> Scan Student/Faculty ID to Verify
+                                    </button>
+                                )}
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-2">
@@ -254,8 +345,8 @@ export default function IssuesPage() {
                                 <p className="text-[11px] text-gray-400 mt-1">Default: {settings.defaultDueDays} days · Fine: ₹{settings.finePerDay}/day overdue</p>
                             </div>
                             <div className="flex gap-3 pt-2">
-                                <button onClick={() => setShowIssueModal(false)} className="btn-secondary flex-1">Cancel</button>
-                                <button onClick={handleIssue} disabled={processing === 'issue'} className="btn-primary flex-1 flex items-center justify-center gap-2">
+                                <button onClick={() => { setShowIssueModal(false); setIssueForm(p => ({ ...p, userId: '' })); }} className="btn-secondary flex-1">Cancel</button>
+                                <button onClick={handleIssue} disabled={processing === 'issue' || !issueForm.userId} className="btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-50">
                                     {processing === 'issue' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Issue Book'}
                                 </button>
                             </div>
@@ -263,6 +354,13 @@ export default function IssuesPage() {
                     </div>
                 </div>
             )}
+
+            {/* Reusable Scanner Modal */}
+            <QRScannerModal
+                isOpen={!!scannerMode}
+                onClose={() => setScannerMode(null)}
+                onScan={handleScanResult}
+            />
         </div>
     );
 }

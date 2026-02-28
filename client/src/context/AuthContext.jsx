@@ -5,7 +5,8 @@ import {
     createUserWithEmailAndPassword,
     signOut,
     onAuthStateChanged,
-    updateProfile
+    updateProfile,
+    sendPasswordResetEmail
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
@@ -92,6 +93,15 @@ export function AuthProvider({ children }) {
         }
     }
 
+    async function resetPassword(email) {
+        try {
+            await sendPasswordResetEmail(auth, email);
+            return { success: true };
+        } catch (err) {
+            return { success: false, error: errMsg(err.code) };
+        }
+    }
+
     async function logout() {
         await signOut(auth);
         setUser(null);
@@ -107,7 +117,7 @@ export function AuthProvider({ children }) {
     }
 
     return (
-        <AuthContext.Provider value={{ user, loading, login, logout, register, updateUserProfile, authError }}>
+        <AuthContext.Provider value={{ user, loading, login, logout, register, resetPassword, updateUserProfile, authError }}>
             {children}
         </AuthContext.Provider>
     );

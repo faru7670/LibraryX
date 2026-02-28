@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { BookOpen, Clock, AlertTriangle, TrendingUp, Loader2, GraduationCap } from 'lucide-react';
+import { BookOpen, Clock, AlertTriangle, TrendingUp, Loader2, GraduationCap, QrCode } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { getStudentStats } from '../../services/analyticsService';
 
 export default function FacultyDashboard() {
@@ -55,34 +56,61 @@ export default function FacultyDashboard() {
                 })}
             </div>
 
-            {/* Active Issues List */}
-            <div className="glass-card overflow-hidden">
-                <div className="p-5 border-b border-gray-200/20 dark:border-gray-700/30">
-                    <h3 className="font-semibold text-gray-800 dark:text-white flex items-center gap-2">
-                        <BookOpen className="w-5 h-5 text-amber-500" /> Currently Borrowed
-                    </h3>
-                </div>
-                {(stats?.activeIssues || []).length === 0 ? (
-                    <p className="p-6 text-center text-gray-400 text-sm">No books borrowed. Visit the catalog!</p>
-                ) : (
-                    <div className="divide-y divide-gray-100/30 dark:divide-gray-700/20">
-                        {(stats?.activeIssues || []).map(issue => {
-                            const days = Math.ceil((new Date(issue.dueDate) - new Date()) / 86400000);
-                            return (
-                                <div key={issue.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50/30 dark:hover:bg-surface-700/20 transition-colors">
-                                    <div className="w-8 h-11 rounded bg-gradient-to-b from-amber-400 to-orange-500 flex-shrink-0 shadow-md" />
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{issue.bookTitle}</p>
-                                        <p className="text-xs text-gray-400">Due: {issue.dueDate}</p>
-                                    </div>
-                                    <span className={`badge ${days < 0 ? 'badge-danger' : days <= 3 ? 'badge-warning' : 'badge-success'}`}>
-                                        {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d left`}
-                                    </span>
-                                </div>
-                            );
-                        })}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Active Issues List */}
+                <div className="lg:col-span-2 glass-card overflow-hidden">
+                    <div className="p-5 border-b border-gray-200/20 dark:border-gray-700/30">
+                        <h3 className="font-semibold text-gray-800 dark:text-white flex items-center gap-2">
+                            <BookOpen className="w-5 h-5 text-amber-500" /> Currently Borrowed
+                        </h3>
                     </div>
-                )}
+                    {(stats?.activeIssues || []).length === 0 ? (
+                        <p className="p-6 text-center text-gray-400 text-sm">No books borrowed. Visit the catalog!</p>
+                    ) : (
+                        <div className="divide-y divide-gray-100/30 dark:divide-gray-700/20">
+                            {(stats?.activeIssues || []).map(issue => {
+                                const days = Math.ceil((new Date(issue.dueDate) - new Date()) / 86400000);
+                                return (
+                                    <div key={issue.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50/30 dark:hover:bg-surface-700/20 transition-colors">
+                                        <div className="w-8 h-11 rounded bg-gradient-to-b from-amber-400 to-orange-500 flex-shrink-0 shadow-md" />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{issue.bookTitle}</p>
+                                            <p className="text-xs text-gray-400">Due: {issue.dueDate}</p>
+                                        </div>
+                                        <span className={`badge ${days < 0 ? 'badge-danger' : days <= 3 ? 'badge-warning' : 'badge-success'}`}>
+                                            {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d left`}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                {/* My Library ID QR Code */}
+                <div className="lg:col-span-1 glass-card overflow-hidden flex flex-col">
+                    <div className="p-5 border-b border-gray-200/20 dark:border-gray-700/30 bg-amber-500/5">
+                        <h3 className="font-semibold text-gray-800 dark:text-white flex items-center gap-2">
+                            <QrCode className="w-5 h-5 text-amber-500" /> My Library ID
+                        </h3>
+                    </div>
+                    <div className="p-6 flex-1 flex flex-col items-center justify-center text-center">
+                        <div className="bg-white p-4 rounded-2xl shadow-sm mb-4">
+                            <QRCodeSVG
+                                value={user?.uid || 'no-id'}
+                                size={180}
+                                level="H"
+                                fgColor="#1f2937"
+                            />
+                        </div>
+                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-1">
+                            {user?.name}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Show this QR code to the librarian when borrowing or returning books.
+                        </p>
+                    </div>
+                </div>
             </div>
         </div>
     );

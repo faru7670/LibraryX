@@ -47,6 +47,7 @@ export async function issueBook({ bookId, bookTitle, userId, userName, userEmail
         dueDate: dueDateStr,
         returnDate: null,
         fineAmount: 0,
+        fineStatus: 'none',
         status: 'issued',
         createdAt: serverTimestamp(),
     });
@@ -114,9 +115,11 @@ export async function returnBook(issueId, returnedBy) {
     }
 
     // Update issue record
+    const fineStatus = fineAmount > 0 ? 'unpaid' : 'none';
     await updateDoc(issueRef, {
         returnDate: returnDate.toISOString().split('T')[0],
         fineAmount,
+        fineStatus,
         status: 'returned',
     });
 
@@ -199,6 +202,7 @@ export async function reportLostBook(issueId, reportedBy) {
     await updateDoc(issueRef, {
         status: 'lost',
         fineAmount: lostBookFine,
+        fineStatus: 'unpaid',
         returnDate: new Date().toISOString().split('T')[0],
     });
 
@@ -241,6 +245,36 @@ export async function reportLostBook(issueId, reportedBy) {
     return { fineAmount: lostBookFine };
 }
 
+// Pay an unpaid fine
+export async function payFine(issueId, paidBy) {
+    const issueRef = doc(db, ISSUES_COL, issueId);
+    const issueSnap = await getDoc(issueRef);
+    if (!issueSnap.exists()) throw new Error('Issue record not found');
+
+    const issue = issueSnap.data();
+    if (issue.fineStatus !== 'unpaid') throw new Error('No unpaid fine found or fine already paid.');
+
+    await updateDoc(issueRef, { fineStatus: 'paid' });
+
+    // Log for librarian
+    await logActivity(
+        paidBy.uid,
+        paidBy.displayName || paidBy.email,
+        'fine_paid',
+        `Collected ₹${issue.fineAmount} fine from ${issue.userName} for "${issue.bookTitle}"`
+    );
+
+    // Log for student
+    await logStudentActivity(
+        issue.userId,
+        issue.userName,
+        'fine_paid',
+        `Paid ₹${issue.fineAmount} fine for "${issue.bookTitle}"`
+    );
+
+    return { success: true, amount: issue.fineAmount };
+}
+
 
 // Get all issues (filtered by role)
 export async function getIssues(userRole, userId) {
@@ -268,16 +302,19 @@ export async function getIssues(userRole, userId) {
         // Auto-calculate overdue status
         let status = data.status;
         let fineAmount = data.fineAmount || 0;
+        let fineStatus = data.fineStatus || 'none';
         if (status === 'issued' && new Date(data.dueDate) < now) {
             status = 'overdue';
             const daysOverdue = Math.ceil((now - new Date(data.dueDate)) / (1000 * 60 * 60 * 24));
             fineAmount = daysOverdue * finePerDay;
+            fineStatus = 'unpaid';
         }
         return {
             id: d.id,
             ...data,
             status,
             fineAmount,
+            fineStatus,
             createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
         };
     });

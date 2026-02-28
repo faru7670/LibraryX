@@ -9,13 +9,15 @@ export default function LoginPage() {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
+    const [successMessage, setSuccessMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const { login } = useAuth();
+    const { login, resetPassword } = useAuth();
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+        setSuccessMessage('');
         if (!email || !password) {
             setError('Please enter both email and password.');
             return;
@@ -25,6 +27,27 @@ export default function LoginPage() {
         setIsLoading(false);
         if (result.success) {
             navigate('/dashboard');
+        } else {
+            setError(result.error);
+        }
+    };
+
+    const handleForgotPassword = async (e) => {
+        e.preventDefault();
+        setError('');
+        setSuccessMessage('');
+
+        if (!email) {
+            setError('Please enter your email address first.');
+            return;
+        }
+
+        setIsLoading(true);
+        const result = await resetPassword(email);
+        setIsLoading(false);
+
+        if (result.success) {
+            setSuccessMessage('Password reset email sent! Check your inbox.');
         } else {
             setError(result.error);
         }
@@ -53,9 +76,15 @@ export default function LoginPage() {
                     <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-1">Welcome back ✨</h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Sign in to manage your library</p>
 
+                    {successMessage && (
+                        <div className="mb-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-sm flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
+                            {successMessage}
+                        </div>
+                    )}
                     {error && (
-                        <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0" />
+                        <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-sm flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />
                             {error}
                         </div>
                     )}
@@ -100,12 +129,19 @@ export default function LoginPage() {
                             </div>
                         </div>
 
-                        <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center justify-between text-sm mb-4">
                             <label className="flex items-center gap-2 text-gray-500 dark:text-gray-400 cursor-pointer">
                                 <input type="checkbox" className="rounded border-gray-600 bg-transparent text-violet-500 focus:ring-violet-500/30" />
                                 <span className="text-xs">Remember me</span>
                             </label>
-                            <a href="#" className="text-xs text-violet-400 hover:text-violet-300 font-medium transition-colors">Forgot password?</a>
+                            <button
+                                type="button"
+                                onClick={handleForgotPassword}
+                                disabled={isLoading}
+                                className="text-xs text-violet-600 dark:text-violet-400 hover:text-violet-500 dark:hover:text-violet-300 font-medium transition-colors"
+                            >
+                                Forgot password?
+                            </button>
                         </div>
 
                         <button

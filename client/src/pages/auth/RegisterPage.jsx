@@ -71,13 +71,10 @@ export default function RegisterPage() {
                             </div>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
-                            <div>
+                            <div className="hidden">
                                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Role</label>
                                 <select value={role} onChange={e => setRole(e.target.value)} className="input-glass w-full" disabled={isLoading}>
                                     <option value="student">Student</option>
-                                    <option value="faculty">Faculty</option>
-                                    <option value="librarian">Librarian</option>
-                                    <option value="admin">Admin</option>
                                 </select>
                             </div>
                             <div>
