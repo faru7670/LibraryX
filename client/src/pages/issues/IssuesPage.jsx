@@ -100,18 +100,21 @@ export default function IssuesPage() {
             return;
         }
 
-        // For Return or Lost, verify the scanned UID owns the issue
-        const issueId = actionPayload;
-        const targetIssue = issues.find(i => i.id === issueId);
+        // For Return, Lost, or PayFine, verify the scanned UID owns the issue
+        if (['lost', 'return', 'payfine'].includes(scannerMode)) {
+            const issueId = actionPayload;
+            const targetIssue = issues.find(i => i.id === issueId);
 
-        if (!targetIssue || targetIssue.userId !== scannedUid) {
-            setMessage({ type: 'error', text: 'Verification Failed: The scanned ID does not belong to the user who borrowed this book.' });
-            setTimeout(() => setMessage(null), 5000);
-            return;
+            if (!targetIssue || targetIssue.userId !== scannedUid) {
+                setMessage({ type: 'error', text: 'Verification Failed: The scanned ID does not belong to the user who borrowed this book.' });
+                setTimeout(() => setMessage(null), 5000);
+                return;
+            }
         }
 
         // 3. Report Lost
         if (scannerMode === 'lost') {
+            const issueId = actionPayload;
             setProcessing(issueId);
             try {
                 const result = await reportLostBook(issueId, user);
@@ -126,6 +129,7 @@ export default function IssuesPage() {
 
         // 4. Return Book
         if (scannerMode === 'return') {
+            const issueId = actionPayload;
             setProcessing(issueId);
             try {
                 const result = await returnBook(issueId, user);
@@ -140,6 +144,7 @@ export default function IssuesPage() {
 
         // 5. Pay Fine
         if (scannerMode === 'payfine') {
+            const issueId = actionPayload;
             setProcessing(issueId);
             try {
                 const result = await payFine(issueId, user);
