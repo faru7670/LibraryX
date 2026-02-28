@@ -73,7 +73,22 @@ export default function IssuesPage() {
     const handleScanResult = async (scannedUid) => {
         setScannerMode(null); // close scanner
 
-        // 1. Issuing a book
+        // 1. Issuing a book (Scan Book QR)
+        if (scannerMode === 'scanbook') {
+            const foundBook = books.find(b => b.id === scannedUid);
+            if (!foundBook) {
+                setMessage({ type: 'error', text: 'Book not found in inventory.' });
+            } else if (foundBook.availableCopies <= 0) {
+                setMessage({ type: 'error', text: `"${foundBook.title}" has no available copies.` });
+            } else {
+                setIssueForm(p => ({ ...p, bookId: foundBook.id }));
+                setMessage({ type: 'success', text: `Book Selected: "${foundBook.title}"` });
+            }
+            setTimeout(() => setMessage(null), 4000);
+            return;
+        }
+
+        // 2. Issuing a book (Scan User ID)
         if (scannerMode === 'issue') {
             const selectedUser = users.find(s => s.id === scannedUid);
             if (!selectedUser) {
@@ -95,7 +110,7 @@ export default function IssuesPage() {
             return;
         }
 
-        // 2. Report Lost
+        // 3. Report Lost
         if (scannerMode === 'lost') {
             setProcessing(issueId);
             try {
@@ -109,7 +124,7 @@ export default function IssuesPage() {
             setTimeout(() => setMessage(null), 5000);
         }
 
-        // 3. Return Book
+        // 4. Return Book
         if (scannerMode === 'return') {
             setProcessing(issueId);
             try {
@@ -123,7 +138,7 @@ export default function IssuesPage() {
             setTimeout(() => setMessage(null), 4000);
         }
 
-        // 4. Pay Fine
+        // 5. Pay Fine
         if (scannerMode === 'payfine') {
             setProcessing(issueId);
             try {
@@ -135,6 +150,27 @@ export default function IssuesPage() {
             }
             setProcessing('');
             setTimeout(() => setMessage(null), 4000);
+        }
+
+        // 6. Rapid Return (Scan Book ID)
+        if (scannerMode === 'rapidreturn') {
+            setProcessing('rapidreturn');
+            try {
+                // Find an active issue that matches the scanned book ID
+                const activeIssue = issues.find(i => i.bookId === scannedUid && i.status === 'active');
+                if (!activeIssue) {
+                    setMessage({ type: 'error', text: 'No active issue found for this book.' });
+                } else {
+                    const result = await returnBook(activeIssue.id, user);
+                    setMessage({ type: 'success', text: `Verified & Returned! ${result.fineAmount > 0 ? `Fine: ₹${result.fineAmount}` : 'No fine.'}` });
+                    fetchData();
+                }
+            } catch (err) {
+                setMessage({ type: 'error', text: err.message });
+            }
+            setProcessing('');
+            setTimeout(() => setMessage(null), 4000);
+            return;
         }
     };
 
@@ -193,9 +229,14 @@ export default function IssuesPage() {
                     </p>
                 </div>
                 {canManage && (
-                    <button onClick={() => setShowIssueModal(true)} className="btn-primary flex items-center gap-2">
-                        <BookCopy className="w-4 h-4" /> Issue Book
-                    </button>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                        <button onClick={() => confirmActionWithScanner('rapidreturn')} className="btn-secondary flex items-center justify-center gap-2 bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/30">
+                            <QrCode className="w-4 h-4" /> Scan Book to Return
+                        </button>
+                        <button onClick={() => setShowIssueModal(true)} className="btn-primary flex items-center justify-center gap-2">
+                            <BookCopy className="w-4 h-4" /> Issue Book
+                        </button>
+                    </div>
                 )}
             </div>
 
@@ -303,10 +344,20 @@ export default function IssuesPage() {
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Select Book</label>
+                                <div className="flex gap-2 mb-2">
+                                    <button
+                                        onClick={() => confirmActionWithScanner('scanbook')}
+                                        className="flex-1 py-2 rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400 font-medium flex items-center justify-center gap-2 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors text-sm"
+                                    >
+                                        <QrCode className="w-4 h-4" /> Scan Book QR
+                                    </button>
+                                </div>
                                 <select value={issueForm.bookId} onChange={(e) => setIssueForm(p => ({ ...p, bookId: e.target.value }))} className="input-glass w-full">
-                                    <option value="">Choose a book...</option>
-                                    {books.filter(b => b.availableCopies > 0).map(b => (
-                                        <option key={b.id} value={b.id}>{b.title} ({b.availableCopies} copies)</option>
+                                    <option value="">Or select manually...</option>
+                                    {books.filter(b => b.availableCopies > 0 || issueForm.bookId === b.id).map(b => (
+                                        <option key={b.id} value={b.id}>
+                                            {b.title} ({b.availableCopies} available)
+                                        </option>
                                     ))}
                                 </select>
                             </div>

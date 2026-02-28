@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, Filter, Grid3X3, List, BookOpen, ChevronDown, Plus, Loader2, BookMarked, Camera, ImagePlus, X, Pencil, Save } from 'lucide-react';
+import { Search, Filter, Grid3X3, List, BookOpen, ChevronDown, Plus, Loader2, BookMarked, Camera, ImagePlus, X, Pencil, Save, QrCode, Download } from 'lucide-react';
 import { getBooks, addBook, updateBook } from '../../services/bookService';
 import { reserveBook } from '../../services/reservationService';
 import { useAuth } from '../../context/AuthContext';
+import { QRCodeSVG } from 'qrcode.react';
+import html2canvas from 'html2canvas';
 
 const categories = ['All', 'Computer Science', 'Software Engineering', 'Electronics', 'Mechanical', 'Civil', 'Mathematics'];
 const coverColors = ['#6366f1', '#14b8a6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981', '#f97316', '#3b82f6'];
@@ -49,6 +51,8 @@ export default function BooksPage() {
     const [editForm, setEditForm] = useState({});
     const [editImagePreview, setEditImagePreview] = useState(null);
     const editFileRef = useRef(null);
+    // QR Code Modal State
+    const [qrBook, setQrBook] = useState(null);
 
     const canManage = user?.role === 'librarian' || user?.role === 'admin';
 
@@ -143,6 +147,25 @@ export default function BooksPage() {
         setTimeout(() => setMessage(null), 3000);
     };
 
+    const downloadBookQR = async () => {
+        const qrElement = document.getElementById('book-qr-container');
+        if (!qrElement || !qrBook) return;
+
+        try {
+            const canvas = await html2canvas(qrElement, {
+                backgroundColor: '#ffffff',
+                scale: 2
+            });
+            const url = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = `BookQR_${qrBook.title.replace(/\s+/g, '_')}.png`;
+            link.href = url;
+            link.click();
+        } catch (err) {
+            console.error('Failed to download QR code:', err);
+        }
+    };
+
     return (
         <div className="page-enter space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -229,9 +252,14 @@ export default function BooksPage() {
                                 </div>
                                 <div className="flex gap-2 mt-3">
                                     {canManage && (
-                                        <button onClick={() => openEditModal(book)} className="flex-1 text-xs btn-secondary py-1.5 flex items-center justify-center gap-1">
-                                            <Pencil className="w-3 h-3" /> Edit
-                                        </button>
+                                        <>
+                                            <button onClick={() => setQrBook(book)} className="flex-1 text-xs btn-secondary py-1.5 flex items-center justify-center gap-1">
+                                                <QrCode className="w-3 h-3" /> QR Setup
+                                            </button>
+                                            <button onClick={() => openEditModal(book)} className="flex-1 text-xs btn-secondary py-1.5 flex items-center justify-center gap-1">
+                                                <Pencil className="w-3 h-3" /> Edit
+                                            </button>
+                                        </>
                                     )}
                                     {book.availableCopies <= 0 && (user?.role === 'student' || user?.role === 'faculty') && (
                                         <button onClick={() => handleReserve(book)} className="flex-1 text-xs btn-secondary py-1.5 flex items-center justify-center gap-1">
@@ -418,6 +446,47 @@ export default function BooksPage() {
                             <button onClick={() => setEditBook(null)} className="btn-secondary flex-1">Cancel</button>
                             <button onClick={handleEditBook} disabled={saving} className="btn-primary flex-1 flex items-center justify-center gap-2">
                                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4" /> Save</>}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Book QR Code Modal */}
+            {qrBook && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setQrBook(null)}>
+                    <div className="glass-card p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                <QrCode className="w-5 h-5 text-violet-500" /> Book QR Tag
+                            </h2>
+                            <button onClick={() => setQrBook(null)} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="flex flex-col items-center justify-center p-4">
+                            <div id="book-qr-container" className="bg-white p-4 rounded-xl shadow-sm mb-4 inline-block text-center border-2 border-gray-100">
+                                <p className="text-[10px] font-bold text-gray-800 uppercase tracking-widest mb-2 border-b-2 border-gray-800 pb-1 w-full">LibraryX Tag</p>
+                                <QRCodeSVG
+                                    value={qrBook.id}
+                                    size={160}
+                                    level="H"
+                                    fgColor="#000000"
+                                    className="mx-auto"
+                                />
+                                <p className="text-[10px] font-bold text-gray-800 uppercase tracking-tight mt-2 w-full truncate max-w-[160px]">{qrBook.title}</p>
+                            </div>
+
+                            <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-6">
+                                Download this tag and attach it to the physical book to enable rapid scanning during checkout.
+                            </p>
+
+                            <button
+                                onClick={downloadBookQR}
+                                className="w-full btn-primary flex items-center justify-center gap-2"
+                            >
+                                <Download className="w-4 h-4" /> Download QR Label
                             </button>
                         </div>
                     </div>
