@@ -64,7 +64,7 @@ export async function getReservations(userRole, userId) {
         return {
             id: d.id,
             ...data,
-            createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
+            createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt,
         };
     });
 

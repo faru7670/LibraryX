@@ -71,11 +71,9 @@ export default function ReservationsPage() {
                                 <h3 className="font-semibold text-gray-800 dark:text-white text-sm">{res.bookTitle || 'Book'}</h3>
                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                                     {user?.role !== 'student' && `${res.userName} · `}
-                                    Reserved on {res.reservedAt.includes('T') ? new Date(res.reservedAt).toLocaleString('en-US', {
+                                    Reserved on {new Date(res.createdAt || res.reservedAt).toLocaleString('en-US', {
                                         month: 'short', day: 'numeric', year: 'numeric',
                                         hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
-                                    }) : new Date(res.reservedAt + 'T00:00:00').toLocaleDateString('en-US', {
-                                        month: 'short', day: 'numeric', year: 'numeric'
                                     })}
                                 </p>
                             </div>
