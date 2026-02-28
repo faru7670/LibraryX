@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BookCopy, RotateCcw, Search, CheckCircle, AlertCircle, Loader2, Calendar, Camera, Image, AlertOctagon, Ban, ScanLine } from 'lucide-react';
+import { BookCopy, RotateCcw, Search, CheckCircle, AlertCircle, Loader2, Calendar, Camera, Image, AlertOctagon, Ban, QrCode } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { getIssues, issueBook, returnBook, reportLostBook, payFine } from '../../services/issueService';
 import { getBooks } from '../../services/bookService';
@@ -265,11 +265,11 @@ export default function IssuesPage() {
                                             <div className="flex items-center gap-2">
                                                 {canManage && (
                                                     <button onClick={() => confirmActionWithScanner('return', issue.id)} disabled={processing === issue.id} className="text-xs btn-secondary py-1.5 px-3 flex items-center gap-1 disabled:opacity-50">
-                                                        {processing === issue.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <ScanLine className="w-3 h-3" />} Scan & Return
+                                                        {processing === issue.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <QrCode className="w-3 h-3" />} Scan & Return
                                                     </button>
                                                 )}
                                                 <button onClick={() => confirmActionWithScanner('lost', issue.id)} disabled={processing === issue.id} className="text-xs py-1.5 px-3 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20 flex items-center gap-1 disabled:opacity-50 transition-colors">
-                                                    {processing === issue.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <ScanLine className="w-3 h-3 text-red-500" />} Scan & Mark Lost
+                                                    {processing === issue.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <QrCode className="w-3 h-3 text-red-500" />} Scan & Mark Lost
                                                 </button>
                                             </div>
                                         </td>
@@ -278,7 +278,7 @@ export default function IssuesPage() {
                                         <td className="px-6 py-4">
                                             {issue.fineAmount > 0 && issue.fineStatus === 'unpaid' ? (
                                                 <button onClick={() => confirmActionWithScanner('payfine', issue.id)} disabled={processing === issue.id} className="text-xs py-1.5 px-3 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 flex items-center gap-1 disabled:opacity-50 transition-colors">
-                                                    {processing === issue.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <ScanLine className="w-3 h-3 text-emerald-500" />} Scan to Pay Fine
+                                                    {processing === issue.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <QrCode className="w-3 h-3 text-emerald-500" />} Scan to Pay Fine
                                                 </button>
                                             ) : (
                                                 <span className="text-xs text-gray-400">—</span>
@@ -327,7 +327,7 @@ export default function IssuesPage() {
                                         onClick={() => confirmActionWithScanner('issue')}
                                         className="w-full py-3 rounded-xl border-2 border-dashed border-violet-300 dark:border-violet-700 hover:bg-violet-50 dark:hover:bg-violet-900/10 text-violet-600 dark:text-violet-400 font-medium flex items-center justify-center gap-2 transition-colors"
                                     >
-                                        <ScanLine className="w-5 h-5" /> Scan Student/Faculty Barcode to Verify
+                                        <QrCode className="w-5 h-5" /> Scan Student/Faculty ID to Verify
                                     </button>
                                 )}
                             </div>
