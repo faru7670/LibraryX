@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { BookOpen, Clock, AlertTriangle, TrendingUp, Loader2, GraduationCap, QrCode } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
+import { BookOpen, Clock, AlertTriangle, TrendingUp, Loader2, GraduationCap, CreditCard, Download } from 'lucide-react';
+import Barcode from 'react-barcode';
+import html2canvas from 'html2canvas';
 import { getStudentStats } from '../../services/analyticsService';
 
 export default function FacultyDashboard() {
@@ -17,6 +18,25 @@ export default function FacultyDashboard() {
     }, [user?.uid]);
 
     if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-amber-500" /></div>;
+
+    const downloadBarcode = async () => {
+        const barcodeElement = document.getElementById('barcode-container');
+        if (!barcodeElement) return;
+
+        try {
+            const canvas = await html2canvas(barcodeElement, {
+                backgroundColor: '#ffffff',
+                scale: 2 // High resolution
+            });
+            const url = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = `FacultyID_${user?.name?.replace(/\s+/g, '_')}.png`;
+            link.href = url;
+            link.click();
+        } catch (err) {
+            console.error('Failed to download barcode:', err);
+        }
+    };
 
     const cards = [
         { label: 'Books Borrowed', value: stats?.issuedCount || 0, icon: BookOpen, color: 'from-amber-500 to-orange-500', route: '/my-books' },
@@ -87,28 +107,38 @@ export default function FacultyDashboard() {
                     )}
                 </div>
 
-                {/* My Library ID QR Code */}
+                {/* My Library ID Barcode */}
                 <div className="lg:col-span-1 glass-card overflow-hidden flex flex-col">
                     <div className="p-5 border-b border-gray-200/20 dark:border-gray-700/30 bg-amber-500/5">
                         <h3 className="font-semibold text-gray-800 dark:text-white flex items-center gap-2">
-                            <QrCode className="w-5 h-5 text-amber-500" /> My Library ID
+                            <CreditCard className="w-5 h-5 text-amber-500" /> My Library ID
                         </h3>
                     </div>
                     <div className="p-6 flex-1 flex flex-col items-center justify-center text-center">
-                        <div className="bg-white p-4 rounded-2xl shadow-sm mb-4">
-                            <QRCodeSVG
+                        <div id="barcode-container" className="bg-white p-4 rounded-xl shadow-sm mb-4 inline-block">
+                            <Barcode
                                 value={user?.uid || 'no-id'}
-                                size={180}
-                                level="H"
-                                fgColor="#1f2937"
+                                format="CODE128"
+                                width={1.8}
+                                height={60}
+                                displayValue={true}
+                                background="#ffffff"
+                                lineColor="#1f2937"
+                                margin={0}
                             />
                         </div>
                         <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-1">
                             {user?.name}
                         </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Show this QR code to the librarian when borrowing or returning books.
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-6">
+                            Show this barcode to the librarian when borrowing or returning books.
                         </p>
+                        <button
+                            onClick={downloadBarcode}
+                            className="w-full btn-secondary flex items-center justify-center gap-2"
+                        >
+                            <Download className="w-4 h-4" /> Download ID
+                        </button>
                     </div>
                 </div>
             </div>

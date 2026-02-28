@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
-import { X, QrCode } from 'lucide-react';
+import { Html5QrcodeScanner, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import { X, ScanLine } from 'lucide-react';
 
 export default function QRScannerModal({ isOpen, onClose, onScan }) {
     useEffect(() => {
@@ -8,8 +8,12 @@ export default function QRScannerModal({ isOpen, onClose, onScan }) {
 
         // Ensure the div exists before initializing
         const scanner = new Html5QrcodeScanner('qr-reader', {
-            qrbox: { width: 250, height: 250 },
+            qrbox: { width: 300, height: 150 }, // Wider box for barcodes
             fps: 10,
+            formatsToSupport: [
+                Html5QrcodeSupportedFormats.CODE_128,
+                Html5QrcodeSupportedFormats.QR_CODE
+            ]
         });
 
         scanner.render(
@@ -44,7 +48,7 @@ export default function QRScannerModal({ isOpen, onClose, onScan }) {
             <div className="glass-card w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
                 <div className="p-4 border-b border-gray-200/20 dark:border-gray-700/30 flex justify-between items-center bg-violet-500/5">
                     <h3 className="font-bold font-display text-gray-800 dark:text-white flex items-center gap-2">
-                        <QrCode className="w-5 h-5 text-violet-500" /> Verify Identity
+                        <ScanLine className="w-5 h-5 text-violet-500" /> Verify Identity
                     </h3>
                     <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
                         <X className="w-5 h-5" />
@@ -54,7 +58,7 @@ export default function QRScannerModal({ isOpen, onClose, onScan }) {
                     {/* The library injects UI here */}
                     <div id="qr-reader" className="w-full overflow-hidden rounded-xl bg-white dark:bg-black/20"></div>
                     <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
-                        Please point your camera at the user's Library ID QR Code.
+                        Please point your camera at the user's Library ID Barcode.
                     </p>
                 </div>
             </div>
