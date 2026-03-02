@@ -6,6 +6,8 @@ const FaceScanner = ({ onFaceDetected, isScanning }) => {
     const canvasRef = useRef(null);
     const [modelsLoaded, setModelsLoaded] = useState(false);
     const [error, setError] = useState(null);
+    const [devices, setDevices] = useState([]);
+    const [selectedDeviceId, setSelectedDeviceId] = useState('');
 
     // Load face-api models
     useEffect(() => {
@@ -28,12 +30,33 @@ const FaceScanner = ({ onFaceDetected, isScanning }) => {
 
     // Start video stream
     useEffect(() => {
+        let currentStream = null;
+
         const startVideo = async () => {
             if (!isScanning) return;
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                // Get available cameras
+                const mediaDevices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = mediaDevices.filter(device => device.kind === 'videoinput');
+                setDevices(videoDevices);
+
+                const constraints = {
+                    video: selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true
+                };
+
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                currentStream = stream;
                 if (videoRef.current) {
                     videoRef.current.srcObject = stream;
+                }
+
+                // Auto-select the active device in the dropdown if we didn't specify one
+                if (!selectedDeviceId && stream.getVideoTracks().length > 0) {
+                    const track = stream.getVideoTracks()[0];
+                    const settings = track.getSettings();
+                    if (settings.deviceId) {
+                        setSelectedDeviceId(settings.deviceId);
+                    }
                 }
             } catch (err) {
                 console.error("Error accessing webcam", err);
@@ -47,12 +70,11 @@ const FaceScanner = ({ onFaceDetected, isScanning }) => {
 
         return () => {
             // Cleanup video stream on unmount or when scanning stops
-            if (videoRef.current && videoRef.current.srcObject) {
-                const tracks = videoRef.current.srcObject.getTracks();
-                tracks.forEach(track => track.stop());
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
             }
         };
-    }, [modelsLoaded, isScanning]);
+    }, [modelsLoaded, isScanning, selectedDeviceId]);
 
     const handleVideoPlay = useCallback(() => {
         if (!videoRef.current || !canvasRef.current || !isScanning) return;
@@ -111,24 +133,41 @@ const FaceScanner = ({ onFaceDetected, isScanning }) => {
     }
 
     return (
-        <div className="relative w-full max-w-md mx-auto aspect-video bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center">
-            {!isScanning ? (
-                <p className="text-white z-10">Camera Paused</p>
-            ) : (
-                <>
-                    <video
-                        ref={videoRef}
-                        onPlay={handleVideoPlay}
-                        autoPlay
-                        muted
-                        className="absolute top-0 left-0 w-full h-full object-cover"
-                    />
-                    <canvas
-                        ref={canvasRef}
-                        className="absolute top-0 left-0 w-full h-full object-cover z-10 pointer-events-none"
-                    />
-                </>
+        <div className="flex flex-col gap-2 w-full max-w-md mx-auto">
+            {devices.length > 1 && (
+                <div className="mb-2">
+                    <select
+                        value={selectedDeviceId}
+                        onChange={(e) => setSelectedDeviceId(e.target.value)}
+                        className="w-full text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 py-1.5 px-3 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    >
+                        {devices.map((device, index) => (
+                            <option key={device.deviceId} value={device.deviceId}>
+                                {device.label || `Camera ${index + 1}`}
+                            </option>
+                        ))}
+                    </select>
+                </div>
             )}
+            <div className="relative w-full aspect-video bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center">
+                {!isScanning ? (
+                    <p className="text-white z-10">Camera Paused</p>
+                ) : (
+                    <>
+                        <video
+                            ref={videoRef}
+                            onPlay={handleVideoPlay}
+                            autoPlay
+                            muted
+                            className="absolute top-0 left-0 w-full h-full object-cover"
+                        />
+                        <canvas
+                            ref={canvasRef}
+                            className="absolute top-0 left-0 w-full h-full object-cover z-10 pointer-events-none"
+                        />
+                    </>
+                )}
+            </div>
         </div>
     );
 };
