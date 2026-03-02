@@ -4,7 +4,8 @@ import { useTheme } from '../../context/ThemeContext';
 import { getGravatarUrl } from '../../utils/gravatar';
 import { getAppSettings, saveAppSettings } from '../../services/settingsService';
 import { sendTestEmail } from '../../services/emailService';
-import { User, Moon, Sun, Save, CheckCircle, Loader2, Calendar, Send, Sparkles, Zap, Palette, Camera, ImagePlus, X } from 'lucide-react';
+import FaceScanner from '../../components/scanner/FaceScanner';
+import { User, Moon, Sun, Save, CheckCircle, Loader2, Calendar, Send, Sparkles, Zap, Palette, Camera, ImagePlus, X, ShieldAlert } from 'lucide-react';
 
 // Compress profile image
 function compressImage(file, maxWidth = 200, quality = 0.8) {
@@ -39,6 +40,8 @@ export default function SettingsPage() {
     const [testingEmail, setTestingEmail] = useState(false);
     const [emailTestResult, setEmailTestResult] = useState(null);
     const [profileImage, setProfileImage] = useState(user?.profileImage || null);
+    const [faceDescriptor, setFaceDescriptor] = useState(user?.faceDescriptor || null);
+    const [isScanningFace, setIsScanningFace] = useState(false);
     const fileInputRef = useRef(null);
 
     // Admin/Librarian settings
@@ -68,7 +71,7 @@ export default function SettingsPage() {
     const handleSave = async () => {
         setSaving(true);
         try {
-            await updateUserProfile({ name, department, profileImage });
+            await updateUserProfile({ name, department, profileImage, faceDescriptor });
             setSaved(true);
             setTimeout(() => setSaved(false), 2000);
         } catch (err) {
@@ -156,6 +159,48 @@ export default function SettingsPage() {
                         <input type="text" value={user?.role || ''} className="input-glass w-full capitalize" readOnly />
                     </div>
                 </div>
+
+                {/* Face ID Registration for Legacy Users */}
+                {user?.role === 'student' && (
+                    <div className="mt-6 pt-6 border-t border-gray-100 dark:border-gray-800">
+                        <h4 className="text-sm font-semibold text-gray-800 dark:text-white mb-2 flex items-center gap-2">
+                            <ShieldAlert className="w-4 h-4 text-violet-500" /> Library Face Identity
+                        </h4>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                            Your face is used to securely check out and return books.
+                        </p>
+
+                        {faceDescriptor && !isScanningFace ? (
+                            <div className="p-4 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800/30 rounded-xl flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+                                    <CheckCircle className="w-5 h-5" />
+                                    <span className="text-sm font-medium">Face ID Enrolled</span>
+                                </div>
+                                <button onClick={() => setIsScanningFace(true)} className="text-xs text-emerald-600 dark:text-emerald-500 underline hover:text-emerald-500">
+                                    Retake Scan
+                                </button>
+                            </div>
+                        ) : !isScanningFace ? (
+                            <div className="p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 rounded-xl">
+                                <p className="text-sm text-amber-800 dark:text-amber-400 font-medium mb-2">Face ID Missing</p>
+                                <p className="text-xs text-amber-700 dark:text-amber-500 mb-3 opacity-80">You will not be able to borrow books until you register your face.</p>
+                                <button onClick={() => setIsScanningFace(true)} className="btn-primary text-xs py-2 px-4 flex items-center gap-2">
+                                    <Camera className="w-4 h-4" /> Register Face ID
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                <FaceScanner isScanning={true} onFaceDetected={(descriptor) => {
+                                    setFaceDescriptor(descriptor);
+                                    setIsScanningFace(false);
+                                }} />
+                                <button onClick={() => setIsScanningFace(false)} className="w-full text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                                    Cancel Scan
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Appearance — Theme + Color */}

@@ -5,8 +5,10 @@ import { getIssues, issueBook, returnBook, reportLostBook, payFine } from '../..
 import { getBooks } from '../../services/bookService';
 import { getAppSettings } from '../../services/settingsService';
 import QRScannerModal from '../../components/ui/QRScannerModal';
+import FaceScanner from '../../components/scanner/FaceScanner';
 import { db } from '../../firebase';
 import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
+import { findBestMatch } from '../../utils/faceUtils';
 
 export default function IssuesPage() {
     const { user } = useAuth();
@@ -19,8 +21,10 @@ export default function IssuesPage() {
     const [showIssueModal, setShowIssueModal] = useState(false);
 
     // QR Scanner States
-    const [scannerMode, setScannerMode] = useState(null); // 'issue', 'return', 'lost'
+    const [scannerMode, setScannerMode] = useState(null); // 'scanbook', 'rapidreturn'
     const [actionPayload, setActionPayload] = useState(null); // stores the issueId for return/lost mid-scan
+    const [isFaceScanning, setIsFaceScanning] = useState(false); // Controls the FaceScanner
+    const [faceScannerMode, setFaceScannerMode] = useState(null); // 'issue', 'return', 'lost', 'payfine'
 
     const [issueForm, setIssueForm] = useState({ bookId: '', userId: '', dueDate: '' });
     const [message, setMessage] = useState(null);
@@ -187,12 +191,97 @@ export default function IssuesPage() {
         }
     };
 
+    const handleFaceDetected = async (descriptor) => {
+        setIsFaceScanning(false);
+        const match = findBestMatch(users, descriptor);
+
+        if (!match) {
+            setMessage({ type: 'error', text: 'Face not recognized. Please register your face first.' });
+            setTimeout(() => setMessage(null), 5000);
+            return;
+        }
+
+        const scannedUid = match.user.id;
+
+        // 2. Issuing a book (Face Scan)
+        if (faceScannerMode === 'issue') {
+            setIssueForm(p => ({ ...p, userId: scannedUid }));
+            setMessage({ type: 'success', text: `Verified User: ${match.user.name}` });
+            setTimeout(() => setMessage(null), 3000);
+            return;
+        }
+
+        // For Return, Lost, or PayFine, verify the identified face owns the issue
+        if (['lost', 'return', 'payfine'].includes(faceScannerMode)) {
+            const issueId = actionPayload;
+            const targetIssue = issues.find(i => i.id === issueId);
+
+            if (!targetIssue || targetIssue.userId !== scannedUid) {
+                setMessage({ type: 'error', text: 'Verification Failed: That face does not match the user who borrowed this book.' });
+                setTimeout(() => setMessage(null), 5000);
+                return;
+            }
+        }
+
+        // 3. Report Lost (Face Auth)
+        if (faceScannerMode === 'lost') {
+            const issueId = actionPayload;
+            setProcessing(issueId);
+            try {
+                const result = await reportLostBook(issueId, user);
+                setMessage({ type: 'error', text: `Verified by Face. Book marked lost. Penalty: ₹${result.fineAmount}` });
+                fetchData();
+            } catch (err) {
+                setMessage({ type: 'error', text: err.message });
+            }
+            setProcessing('');
+            setTimeout(() => setMessage(null), 5000);
+        }
+
+        // 4. Return Book (Face Auth)
+        if (faceScannerMode === 'return') {
+            const issueId = actionPayload;
+            setProcessing(issueId);
+            try {
+                const result = await returnBook(issueId, user);
+                setMessage({ type: 'success', text: `Face Verified & Returned! ${result.fineAmount > 0 ? `Fine: ₹${result.fineAmount}` : 'No fine.'}` });
+                fetchData();
+            } catch (err) {
+                setMessage({ type: 'error', text: err.message });
+            }
+            setProcessing('');
+            setTimeout(() => setMessage(null), 4000);
+        }
+
+        // 5. Pay Fine (Face Auth)
+        if (faceScannerMode === 'payfine') {
+            const issueId = actionPayload;
+            setProcessing(issueId);
+            try {
+                const result = await payFine(issueId, user);
+                setMessage({ type: 'success', text: `Face Verified! Fine of ₹${result.amount} paid.` });
+                fetchData();
+            } catch (err) {
+                setMessage({ type: 'error', text: err.message });
+            }
+            setProcessing('');
+            setTimeout(() => setMessage(null), 4000);
+        }
+
+        setFaceScannerMode(null);
+    };
+
     const confirmActionWithScanner = (mode, issueId = null) => {
         if (mode === 'lost') {
             if (!confirm('Are you sure this book is lost? A penalty fine will be charged.')) return;
         }
         setActionPayload(issueId);
-        setScannerMode(mode);
+        if (mode === 'scanbook' || mode === 'rapidreturn') {
+            setScannerMode(mode);
+        } else {
+            setFaceScannerMode(mode);
+            setIsFaceScanning(true);
+        }
     };
 
     const handleIssue = async () => {
@@ -320,11 +409,11 @@ export default function IssuesPage() {
                                             <div className="flex items-center gap-2">
                                                 {canManage && (
                                                     <button onClick={() => confirmActionWithScanner('return', issue.id)} disabled={processing === issue.id} className="text-xs btn-secondary py-1.5 px-3 flex items-center gap-1 disabled:opacity-50">
-                                                        {processing === issue.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <QrCode className="w-3 h-3" />} Scan & Return
+                                                        {processing === issue.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />} Return via Face Auth
                                                     </button>
                                                 )}
                                                 <button onClick={() => confirmActionWithScanner('lost', issue.id)} disabled={processing === issue.id} className="text-xs py-1.5 px-3 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20 flex items-center gap-1 disabled:opacity-50 transition-colors">
-                                                    {processing === issue.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <QrCode className="w-3 h-3 text-red-500" />} Scan & Mark Lost
+                                                    {processing === issue.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3 text-red-500" />} Mark Lost (Face Auth)
                                                 </button>
                                             </div>
                                         </td>
@@ -333,7 +422,7 @@ export default function IssuesPage() {
                                         <td className="px-6 py-4">
                                             {issue.fineAmount > 0 && issue.fineStatus === 'unpaid' ? (
                                                 <button onClick={() => confirmActionWithScanner('payfine', issue.id)} disabled={processing === issue.id} className="text-xs py-1.5 px-3 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 flex items-center gap-1 disabled:opacity-50 transition-colors">
-                                                    {processing === issue.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <QrCode className="w-3 h-3 text-emerald-500" />} Scan to Pay Fine
+                                                    {processing === issue.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3 text-emerald-500" />} Pay Fine (Face Auth)
                                                 </button>
                                             ) : (
                                                 <span className="text-xs text-gray-400">—</span>
@@ -392,7 +481,7 @@ export default function IssuesPage() {
                                         onClick={() => confirmActionWithScanner('issue')}
                                         className="w-full py-3 rounded-xl border-2 border-dashed border-violet-300 dark:border-violet-700 hover:bg-violet-50 dark:hover:bg-violet-900/10 text-violet-600 dark:text-violet-400 font-medium flex items-center justify-center gap-2 transition-colors"
                                     >
-                                        <QrCode className="w-5 h-5" /> Scan Student/Faculty ID to Verify
+                                        <Camera className="w-5 h-5" /> Verify Student Identity via Face Scan
                                     </button>
                                 )}
                             </div>
@@ -420,12 +509,31 @@ export default function IssuesPage() {
                 </div>
             )}
 
-            {/* Reusable Scanner Modal */}
+            {/* Reusable Scanner Modal (For Books) */}
             <QRScannerModal
                 isOpen={!!scannerMode}
                 onClose={() => setScannerMode(null)}
                 onScan={handleScanResult}
             />
+
+            {/* Reusable Face Scanner Modal (For Users) */}
+            {isFaceScanning && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="glass-card max-w-md w-full p-6 text-center space-y-4 shadow-2xl relative">
+                        <button onClick={() => { setIsFaceScanning(false); setFaceScannerMode(null); }} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                            <Ban className="w-5 h-5" />
+                        </button>
+                        <h3 className="text-lg font-bold font-display text-gray-800 dark:text-white mb-2">
+                            Face Recognition Gateway
+                        </h3>
+                        <p className="text-sm text-gray-500">Look directly at the camera to authenticate your identity.</p>
+
+                        <div className="rounded-xl overflow-hidden border-2 border-dashed border-violet-500/30">
+                            <FaceScanner isScanning={isFaceScanning} onFaceDetected={handleFaceDetected} />
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

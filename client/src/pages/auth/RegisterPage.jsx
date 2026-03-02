@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Library, Mail, Lock, User, Eye, EyeOff, ArrowRight, Loader2 } from 'lucide-react';
 import AnimatedBackground from '../../components/three/AnimatedBackground';
+import FaceScanner from '../../components/scanner/FaceScanner';
 
 export default function RegisterPage() {
     const [name, setName] = useState('');
@@ -12,6 +13,9 @@ export default function RegisterPage() {
     const [department, setDepartment] = useState('Computer Science');
     const [role, setRole] = useState('student');
     const [showPassword, setShowPassword] = useState(false);
+    const [isScanningFace, setIsScanningFace] = useState(false);
+    const [faceDescriptor, setFaceDescriptor] = useState(null);
+    const [hasFaceScanned, setHasFaceScanned] = useState(false);
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const { register } = useAuth();
@@ -24,8 +28,9 @@ export default function RegisterPage() {
         setError('');
         if (password !== confirmPassword) { setError('Passwords do not match'); return; }
         if (password.length < 6) { setError('Password must be at least 6 characters'); return; }
+        if (role === 'student' && !faceDescriptor) { setError('Please scan your face for student registration'); return; }
         setIsLoading(true);
-        const result = await register(name, email, password, role, department);
+        const result = await register(name, email, password, role, department, faceDescriptor);
         setIsLoading(false);
         if (result.success) { navigate('/dashboard'); } else { setError(result.error); }
     };
@@ -101,6 +106,39 @@ export default function RegisterPage() {
                                 <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Re-enter password" className="input-glass w-full pl-11" required disabled={isLoading} />
                             </div>
                         </div>
+
+                        {role === 'student' && (
+                            <div className="pt-2">
+                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Face ID Registration</label>
+                                {!hasFaceScanned ? (
+                                    <>
+                                        {!isScanningFace ? (
+                                            <button type="button" onClick={() => setIsScanningFace(true)} className="w-full py-2.5 rounded-xl border-2 border-dashed border-violet-500/30text-violet-500 font-medium hover:bg-violet-500/10 transition-colors flex items-center justify-center gap-2">
+                                                <User className="w-5 h-5" /> Start Face Scan
+                                            </button>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                <FaceScanner isScanning={true} onFaceDetected={(descriptor) => {
+                                                    setFaceDescriptor(descriptor);
+                                                    setHasFaceScanned(true);
+                                                    setIsScanningFace(false);
+                                                }} />
+                                                <button type="button" onClick={() => setIsScanningFace(false)} className="w-full text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">Cancel Scan</button>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center justify-between text-emerald-400 text-sm">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                                            Face successfully scanned
+                                        </div>
+                                        <button type="button" onClick={() => { setFaceDescriptor(null); setHasFaceScanned(false); setIsScanningFace(true); }} className="text-xs hover:text-emerald-300 underline">Retake</button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         <button type="submit" disabled={isLoading} className="w-full py-3.5 rounded-xl text-white font-semibold bg-gradient-to-r from-fuchsia-500 via-violet-500 to-cyan-500 hover:opacity-90 transition-all duration-300 shadow-lg shadow-violet-500/25 active:scale-[0.98] disabled:opacity-60 flex items-center justify-center gap-2">
                             {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Create Account <ArrowRight className="w-4 h-4" /></>}
                         </button>

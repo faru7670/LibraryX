@@ -68,13 +68,13 @@ export function AuthProvider({ children }) {
         }
     }
 
-    async function register(name, email, password, role = 'student', department = 'General') {
+    async function register(name, email, password, role = 'student', department = 'General', faceDescriptor = null) {
         try {
             const cred = await createUserWithEmailAndPassword(auth, email, password);
             await updateProfile(cred.user, { displayName: name });
-            const p = { name, email, role, department, createdAt: serverTimestamp() };
+            const p = { name, email, role, department, faceDescriptor, createdAt: serverTimestamp() };
             await setDoc(doc(db, 'users', cred.user.uid), p);
-            const u = { uid: cred.user.uid, email, name, role, department };
+            const u = { uid: cred.user.uid, email, name, role, department, faceDescriptor };
             setUser(u);
             localStorage.setItem('libx_user', JSON.stringify(u));
             return { success: true };
