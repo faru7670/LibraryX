@@ -41,7 +41,11 @@ const FaceScanner = ({ onFaceDetected, isScanning }) => {
                 setDevices(videoDevices);
 
                 const constraints = {
-                    video: selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true
+                    video: {
+                        ...(selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : {}),
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    }
                 };
 
                 const stream = await navigator.mediaDevices.getUserMedia(constraints);

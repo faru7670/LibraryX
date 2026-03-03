@@ -13,7 +13,7 @@ export function euclideanDistance(desc1, desc2) {
 }
 
 // Finds the best matched user given a descriptor and a list of users
-export function findBestMatch(users, targetDescriptor, maxDistance = 0.6) {
+export function findBestMatch(users, targetDescriptor, maxDistance = 0.45) {
     let bestMatch = null;
     let smallestDistance = Infinity;
 
