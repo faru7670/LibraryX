@@ -55,7 +55,13 @@ export default function IssuesPage() {
             // Fetch students AND faculty for issue modal
             if (user?.role === 'librarian' || user?.role === 'admin') {
                 const usersSnap = await getDocs(query(collection(db, 'users'), where('role', 'in', ['student', 'faculty'])));
-                setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+                setUsers(usersSnap.docs.map(d => {
+                    const data = d.data();
+                    if (data.faceDescriptor && typeof data.faceDescriptor === 'string') {
+                        try { data.faceDescriptor = JSON.parse(data.faceDescriptor); } catch (e) { }
+                    }
+                    return { id: d.id, ...data };
+                }));
             }
         } catch (err) {
             console.error('Failed to fetch issues:', err);

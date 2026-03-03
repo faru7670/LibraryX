@@ -41,7 +41,11 @@ export function AuthProvider({ children }) {
             const snap = await getDoc(doc(db, 'users', fbUser.uid));
             if (snap.exists()) {
                 const p = snap.data();
-                const u = { uid: fbUser.uid, email: fbUser.email, name: p.name || fbUser.displayName || 'User', role: p.role, department: p.department || 'General', profileImage: p.profileImage || null };
+                let fd = p.faceDescriptor;
+                if (typeof fd === 'string') {
+                    try { fd = JSON.parse(fd); } catch (e) { }
+                }
+                const u = { uid: fbUser.uid, email: fbUser.email, name: p.name || fbUser.displayName || 'User', role: p.role, department: p.department || 'General', profileImage: p.profileImage || null, faceDescriptor: fd || null };
                 setUser(u);
                 localStorage.setItem('libx_user', JSON.stringify(u));
                 setAuthError('');
@@ -64,7 +68,7 @@ export function AuthProvider({ children }) {
                     if (cached.uid === fbUser.uid) { setUser(cached); return; }
                 } catch { }
             }
-            setUser({ uid: fbUser.uid, email: fbUser.email, name: fbUser.displayName || 'User', role: 'student', department: 'General' });
+            setUser({ uid: fbUser.uid, email: fbUser.email, name: fbUser.displayName || 'User', role: 'student', department: 'General', faceDescriptor: null });
         }
     }
 
@@ -72,7 +76,7 @@ export function AuthProvider({ children }) {
         try {
             const cred = await createUserWithEmailAndPassword(auth, email, password);
             await updateProfile(cred.user, { displayName: name });
-            const p = { name, email, role, department, faceDescriptor, createdAt: serverTimestamp() };
+            const p = { name, email, role, department, faceDescriptor: faceDescriptor ? JSON.stringify(faceDescriptor) : null, createdAt: serverTimestamp() };
             await setDoc(doc(db, 'users', cred.user.uid), p);
             const u = { uid: cred.user.uid, email, name, role, department, faceDescriptor };
             setUser(u);
@@ -110,7 +114,14 @@ export function AuthProvider({ children }) {
 
     async function updateUserProfile(updates) {
         if (!user?.uid) return;
-        await setDoc(doc(db, 'users', user.uid), updates, { merge: true });
+
+        const firestoreUpdates = { ...updates };
+        // If there's a face descriptor, we store it as a string to avoid crashing Firebase Console UI
+        if (firestoreUpdates.faceDescriptor && Array.isArray(firestoreUpdates.faceDescriptor)) {
+            firestoreUpdates.faceDescriptor = JSON.stringify(firestoreUpdates.faceDescriptor);
+        }
+
+        await setDoc(doc(db, 'users', user.uid), firestoreUpdates, { merge: true });
         const u = { ...user, ...updates };
         setUser(u);
         localStorage.setItem('libx_user', JSON.stringify(u));
