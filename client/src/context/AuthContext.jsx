@@ -136,7 +136,7 @@ export function AuthProvider({ children }) {
 
 function errMsg(code) {
     const m = { 'auth/email-already-in-use': 'Email already registered.', 'auth/invalid-email': 'Invalid email.', 'auth/weak-password': 'Password too short (min 6).', 'auth/user-not-found': 'No account found.', 'auth/wrong-password': 'Wrong password.', 'auth/invalid-credential': 'Invalid email or password.', 'auth/too-many-requests': 'Too many attempts. Wait.' };
-    return m[code] || 'Something went wrong.';
+    return m[code] || `Authentication Error: ${code.replace('auth/', '').replace(/-/g, ' ')}`;
 }
 
 export const useAuth = () => {
